@@ -1,0 +1,16 @@
+Third-party files vendored into this directory. Do not edit them by hand.
+
+chess.js
+  what:    chess rules, legal-move generation, SAN and PGN
+  version: 0.10.3 (npm package chess.js)
+  licence: BSD-2-Clause, see chess.js.LICENSE.txt
+  sha256:  1a6803b787dc4a6f71aabdd0b010cee7bf0fc70ce032f5ed8d7738684d431bfc
+
+stockfish.asm.js
+  what:    Stockfish 10 chess engine, asm.js build, loaded as a Web Worker
+  version: 10.0.2 (npm package stockfish, file src/stockfish.asm.js)
+  licence: GPL-3.0, see stockfish.COPYING.txt
+  sha256:  90e3c0639d41282e6f4cc99c3d3eb0afb67c27910d6d7546cd4f1803134258e4
+
+Both are published alongside the page rather than loaded from a CDN, so the
+page has no network dependency beyond web fonts. Added 2026-10-09.
