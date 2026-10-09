@@ -34,3 +34,15 @@ gets the one-line record of the concept that now carries it.
   [D004 — coaching is pitched at a 500-600 rated player](/decisions/D004-coaching-pitched-at-500-600-player.md) (Active).
   Linked from the [decisions index](/decisions/); the root [index](/index.md)
   range updated to D001–D004.
+* **Creation + supersession**: two decisions moving the page off the artifact
+  and commentary onto a local model —
+  [D005 — the page runs served locally; the published artifact is an optional cloud build](/decisions/D005-page-served-locally-artifact-optional-cloud-build.md)
+  (Active, supersedes D003) and
+  [D006 — commentary provider is local-omlx by default; cloud-claude only in the artifact, with no automatic fallback](/decisions/D006-commentary-provider-local-omlx-default.md)
+  (Active).
+  [D003](/decisions/D003-repo-source-of-truth-page-runs-as-artifact.md) marked
+  **Superseded** by D005 — status only, content unchanged. Its validation event
+  was partly met (live Claude commentary worked in the artifact), but the
+  artifact's content-security policy blocks fetches to a local model server.
+  Linked from the [decisions index](/decisions/) with the D003 → D005 chain
+  recorded; the root [index](/index.md) range updated to D001–D006.

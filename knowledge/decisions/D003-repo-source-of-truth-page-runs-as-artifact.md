@@ -4,16 +4,16 @@ title: "D003 — Repo is the source of truth; the playable page runs as a publis
 description: The HTML/JS source lives in this repo and the playable page is published from it as a Claude artifact, so it can call Claude for commentary without an API key or a local model server.
 tags: [decision, deployment, artifact, llm, D003]
 decision_id: D003
-status: Provisional
+status: Superseded
 date: 2026-10-09
 supersedes: none
-superseded_by: none
+superseded_by: D005
 generated: { by: human:jason-roche, at: 2026-10-09T00:00:00Z }
 ---
 
 # Status
 
-**Provisional.** Date: 2026-10-09. Supersedes: none. Superseded by: none.
+**Superseded** by [D005](/decisions/D005-page-served-locally-artifact-optional-cloud-build.md) on 2026-10-09. Date: 2026-10-09. Supersedes: none. Superseded by: D005.
 
 Provisional until the validation event: **the first full game played end to end
 with live commentary.** If that works, promote this decision to Active; if it
