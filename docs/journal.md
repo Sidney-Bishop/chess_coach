@@ -16,6 +16,23 @@ a new entry correcting it. The wrongness is part of the record.
   so the journal is never an empty file pretending a record exists.
 - First real work starts from here — log what you try, including what fails.
 
+## 2026-10-09 — bootstrap fix-up and first design decisions
+
+- Scaffolded with project-bootstrap using `--preset minimal --yes`.
+- Gremlin: the bootstrap commit (`df12238`) left `publications/` untracked,
+  because bootstrap commits before it writes that directory. Fixed here with a
+  follow-up commit (`59f1792`). Recorded upstream in Project_Proto_Type's bundle
+  as Q010 (commit `1549804` there).
+- Recorded and committed three design decisions at `81e06f7`:
+  - D002 — engine judges, LLM explains.
+  - D003 — the repo is the source of truth; the page runs as a published Claude
+    artifact. **Provisional** until the first full game played with live
+    commentary.
+  - D004 — coaching pitched at a 500-600 rated player.
+- No application code exists yet.
+- Next: build the first playable board page (legal moves, engine opponent), then
+  add the commentary.
+
 <!-- Entry shape:
 
 ## YYYY-MM-DD — short summary of the session
