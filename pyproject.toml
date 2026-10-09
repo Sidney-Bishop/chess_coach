@@ -1,0 +1,42 @@
+[project]
+name = "chess-coach"
+version = "0.1.0"
+description = "Add your description here"
+requires-python = ">=3.14"
+dependencies = []
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/chess_coach"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+
+# --- project-bootstrap metadata stamp (D014) -------------------------------
+# Written once at creation and never refreshed. `--audit` reads it to learn
+# which preset this project was built to; `stamp_version` is what marks this
+# table as a stamp at all.
+[tool.bootstrap]
+stamp_version = "1"
+preset = "minimal"
+date = "2026-10-09"
+scaffolder_commit = "848b32acfd906dc375b848a8d0c20d965f526f43"
+scaffolder_version = "0.1.0"
+
+# Every OPTIONS key, RESOLVED — after `requires` and `conflicts` — so this
+# records what was actually stamped, not what was asked.
+[tool.bootstrap.options]
+docs_full = false
+docs_philosophy = false
+knowledge = true
+notebooks = false
+tests = false
+git = true
+dvc = false
+graphify = false
+quarto = true
+agents = true
+project_brief = false
