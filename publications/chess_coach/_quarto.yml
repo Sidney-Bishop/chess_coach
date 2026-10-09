@@ -1,0 +1,31 @@
+project:
+  type: website
+  output-dir: _output
+
+website:
+  title: "chess_coach"
+  description: "TODO: one-line description."
+  sidebar:
+    style: docked
+    contents:
+      - sections/01_executive_summary.qmd
+      - sections/02_introduction.qmd
+      - sections/03_dataset.qmd
+      - sections/04_methodology.qmd
+      - sections/05_experiments.qmd
+      - sections/06_results.qmd
+      - sections/07_pipeline.qmd
+      - sections/08_limitations.qmd
+      - sections/09_conclusions.qmd
+      - sections/metrics_explainer.qmd
+
+format:
+  html:
+    theme: cosmo
+    toc: true
+    code-fold: true
+    number-sections: false
+
+# Render the executive summary as the landing page.
+# To render: `quarto render publications/chess_coach/`
+# To preview live: `quarto preview publications/chess_coach/`
