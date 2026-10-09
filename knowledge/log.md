@@ -26,3 +26,11 @@ gets the one-line record of the concept that now carries it.
   sync. `docs/journal.md` is **not** represented in this bundle and remains
   authoritative for session-level detail. See the scope section in
   [conventions](/conventions.md).
+* **Creation**: three decisions setting the tutor's design —
+  [D002 — engine judges, LLM explains](/decisions/D002-engine-judges-llm-explains.md) (Active),
+  [D003 — repo is the source of truth; the playable page runs as a published Claude artifact](/decisions/D003-repo-source-of-truth-page-runs-as-artifact.md)
+  (Provisional, pending the first full game played end to end with live
+  commentary), and
+  [D004 — coaching is pitched at a 500-600 rated player](/decisions/D004-coaching-pitched-at-500-600-player.md) (Active).
+  Linked from the [decisions index](/decisions/); the root [index](/index.md)
+  range updated to D001–D004.

@@ -17,10 +17,13 @@ Each bullet below ends in the decision's current status.
 # Decisions
 
 * [D001 — Scaffolded with project-bootstrap](/decisions/D001-scaffolded-with-project-bootstrap.md) - Adopt the standard layout — knowledge bundle, single-purpose docs, `src/` package, uv, and the enabled tooling options — rather than assembling the project by hand. **Active.**
+* [D002 — Engine judges, LLM explains](/decisions/D002-engine-judges-llm-explains.md) - Stockfish in the page determines move quality; the LLM only turns the engine's output into plain-language coaching and never evaluates positions itself. **Active.**
+* [D003 — Repo is the source of truth; the playable page runs as a published Claude artifact](/decisions/D003-repo-source-of-truth-page-runs-as-artifact.md) - The HTML/JS lives in this repo and is published as a Claude artifact so the page can call Claude without an API key or local model server. **Provisional.**
+* [D004 — Coaching is pitched at a 500-600 rated player](/decisions/D004-coaching-pitched-at-500-600-player.md) - Commentary covers hung pieces, missed captures, opening principles and simple tactics, speaks only when instructive, and ends with a summary of recurring patterns. **Active.**
 
 # Supersession chains
 
-* **Standalone (supersede nothing, superseded by nothing):** [D001](/decisions/D001-scaffolded-with-project-bootstrap.md).
+* **Standalone (supersede nothing, superseded by nothing):** [D001](/decisions/D001-scaffolded-with-project-bootstrap.md), [D002](/decisions/D002-engine-judges-llm-explains.md), [D003](/decisions/D003-repo-source-of-truth-page-runs-as-artifact.md), [D004](/decisions/D004-coaching-pitched-at-500-600-player.md).
 
 _As chains form, record them here: `D002 → D005 → D009`, with a line saying what
 each step changed and whether any earlier decision stays live in a narrower
