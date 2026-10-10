@@ -1,3 +1,8 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Chess Coach</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&family=Noto+Sans+Symbols+2&display=swap">
 <style>
@@ -44,7 +49,8 @@
 }
 
 * { box-sizing: border-box; }
-body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.45; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.45; }
 .app { max-width: 1040px; margin: 0 auto; padding-inline: 16px; padding-block: 20px 32px; display: flex; flex-direction: column; gap: 18px; }
 
 .masthead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; }
@@ -138,13 +144,15 @@ select:focus-visible, .btn:focus-visible { outline: 3px solid var(--accent); out
 .note-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; color: var(--muted); }
 .note-text { margin: 0; font-size: 0.92rem; max-width: 65ch; }
 .note-text.pending { color: var(--muted); }
+.note-by, .review-by { margin: 0; font-size: 0.74rem; color: var(--muted); }
 .note-facts { margin: 0; font-family: var(--font-data); font-size: 0.76rem; color: var(--muted); overflow-wrap: anywhere; }
 .review { padding: 12px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
 .review h3 { margin: 0; font-family: var(--font-display); font-size: 1.05rem; }
 .review p { margin: 0; font-size: 0.92rem; white-space: pre-wrap; max-width: 65ch; }
 .sheet td .mark { color: var(--muted); font-weight: 600; }
 </style>
-
+</head>
+<body>
 <main class="app">
   <header class="masthead">
     <h1>Chess Coach</h1>
@@ -180,6 +188,7 @@ select:focus-visible, .btn:focus-visible { outline: 3px solid var(--accent); out
         <div class="review" id="review" hidden>
           <h3>Game review</h3>
           <p id="review-text"></p>
+          <p class="review-by" id="review-by"></p>
           <button class="btn primary" id="review-btn" type="button">Review this game</button>
         </div>
       </section>
@@ -206,6 +215,7 @@ select:focus-visible, .btn:focus-visible { outline: 3px solid var(--accent); out
           <button class="btn primary" id="new-game" type="button">New game</button>
           <button class="btn" id="undo" type="button">Take back</button>
           <button class="btn" id="flip" type="button">Flip board</button>
+          <button class="btn" id="resign" type="button">Resign</button>
         </div>
         <p class="hint" id="side-hint" hidden>Your colour changes when you start a new game.</p>
       </div>
@@ -221,5 +231,8 @@ select:focus-visible, .btn:focus-visible { outline: 3px solid var(--accent); out
   </div>
 </main>
 
-<script src="vendor/chess.js"></script>
-<script src="coach.js"></script>
+<script src="vendor/chess.js?v=2026-10-10.4"></script>
+<script src="config.js?v=2026-10-10.4"></script>
+<script src="coach.js?v=2026-10-10.4"></script>
+</body>
+</html>

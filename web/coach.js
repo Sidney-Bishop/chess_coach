@@ -1,4 +1,6 @@
 /* Chess Coach: board, engine opponent, and move-by-move coaching.
+   D005: served locally from web/; the published artifact is an optional cloud build.
+   D006: commentary comes from a local model by default, cloud Claude only in the artifact.
    D002: Stockfish judges every move; Claude only explains the engine's output.
    D004: the coach stays quiet unless a move crosses the thresholds in COACH. */
 (function () {
@@ -24,13 +26,13 @@
     praiseMaxLoss: 40,  // ... and the player's reply kept nearly all of it
     clamp: 1000,        // evaluations are capped at +/- this before comparing, so won or lost games stay quiet
     winning: 700,       // "clearly winning" for the end-of-game review
+    stillWinning: 500,  // a mistake that leaves the player at least this far ahead is not flagged (D004: stay quiet)
     depth: 12,
     movetime: 1000
   };
-  var THEMES = ['hung piece', 'missed capture', 'missed threat', 'missed checkmate', 'allowed checkmate',
-                'stalemate', 'tactic', 'king safety', 'opening principle', 'good capture', 'other'];
   var LABEL = { blunder: 'Blunder', mistake: 'Mistake', good: 'Well played' };
   var MARK = { blunder: '??', mistake: '?', good: '!' };
+  var BUILD = '2026-10-10.4';   // shown under the scoresheet, so a stale cached script is visible
   var STORE_KEY = 'chess-coach-v1';
 
   var $ = function (id) { return document.getElementById(id); };
@@ -42,10 +44,10 @@
   var gen = 0;                 // bumped whenever the game is reset or a move is taken back
   var notes = [];              // coach comments: {ply, moveNo, san, label, theme, text, facts, pending, byClaude}
   var track = [];              // {ply, evalAfter} for each judged player move
-  var review = { text: '', busy: false };
+  var review = { text: '', busy: false, by: '', error: '' };
   var judge = { before: null, prevAfter: null };
   var resignArmed = false;
-  var coach = { sample: null, perms: null, resolved: false, on: false, denied: false };
+  var coach = { kind: '', resolved: false, on: false, problem: '', sample: null, perms: null };
 
   /* ---------- engine ---------- */
   var Engine = {
@@ -69,7 +71,7 @@
     onLine: function (line) {
       if (line === 'readyok' && !this.ready) {
         this.ready = true;
-        engineNote('Engine: Stockfish 10, running in this page.', false);
+        engineNote('Engine: Stockfish 10, running in this page. Build ' + BUILD + '.', false);
       }
       var c = this.cur;
       if (!c) return;
@@ -344,6 +346,42 @@
   }
   function points(n) { return n + (n === 1 ? ' point' : ' points'); }
 
+  // What the opponent's replying piece attacks once it has moved, and whether each target is defended.
+  function replyThreats(fenAfter, uci) {
+    if (!uci) return null;
+    var c = new Chess(fenAfter);
+    var m = c.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci.length > 4 ? uci[4] : undefined });
+    if (!m) return null;
+    var parts = c.fen().split(' ');
+    parts[1] = parts[1] === 'w' ? 'b' : 'w';   // give the opponent a second move to see what the piece attacks
+    parts[3] = '-';
+    var f = new Chess(), list = [], loose = false;
+    if (f.load(parts.join(' '))) {
+      list = f.moves({ square: m.to, verbose: true })
+        .filter(function (x) { return x.captured && x.captured !== 'k'; })
+        .map(function (x) {
+          var g = new Chess(f.fen());
+          g.move(x);
+          var def = g.moves({ verbose: true }).some(function (y) { return y.to === x.to && y.captured; });
+          if (!def) loose = true;
+          return 'the player\'s ' + NAME[x.captured] + ' on ' + x.to + ' (' + (def ? 'defended' : 'not defended') + ')';
+        });
+    }
+    return { san: m.san, list: list, loose: loose, captured: m.captured || '' };
+  }
+
+  // Every capture the side to move could make, with whether the other side could take back.
+  function captureFacts(fen) {
+    return new Chess(fen).moves({ verbose: true })
+      .filter(function (m) { return m.captured; })
+      .map(function (m) {
+        var c = new Chess(fen);
+        c.move(m);
+        var back = c.moves({ verbose: true }).some(function (x) { return x.to === m.to && x.captured; });
+        return { san: m.san, piece: m.piece, captured: m.captured, to: m.to, back: back, uci: m.from + m.to + (m.promotion || '') };
+      });
+  }
+
   function assess(d) {
     if (!d.before || !d.after || d.before.score === null || d.after.score === null) return;
     var rawBefore = d.before.score, rawAfter = -d.after.score;
@@ -359,28 +397,49 @@
       if (loss >= COACH.blunder) label = 'blunder';
       else if (loss >= COACH.mistake) label = 'mistake';
     }
+    if (label && rawAfter >= COACH.stillWinning) label = null;
     if (!label && oppLoss >= COACH.praiseSwing && loss <= COACH.praiseMaxLoss) label = 'good';
     if (!label) { save(); return; }
 
+    // ---- facts, all computed here: the model is never asked to work anything out (D002, D006)
     var side = state.side;
+    var drawn = d.after.drawn || '';
+    var bestUci = d.before.pv.length ? d.before.pv[0] : d.before.best;
+    var replyUci = d.after.pv.length ? d.after.pv[0] : d.after.best;
     var bestLine = playLine(d.fenBefore, d.before.pv.length ? d.before.pv : [d.before.best], 8);
-    var replyLine = playLine(d.fenAfter, d.after.pv.length ? d.after.pv : (d.after.best ? [d.after.best] : []), 8);
+    var replyLine = playLine(d.fenAfter, d.after.pv.length ? d.after.pv : (replyUci ? [replyUci] : []), 8);
     var matBefore = material(new Chess(d.fenBefore), side);
     var matReply = material(replyLine.chess, side) - matBefore;
     var matBest = material(bestLine.chess, side) - matBefore;
-    var drawn = d.after.drawn || '';
-    // Each capture the opponent could make, with whether the player could take back. Without that
-    // second fact Claude reads every legal capture as a threat (it called a defended pawn "unprotected").
-    var captures = new Chess(d.fenAfter).moves({ verbose: true })
-      .filter(function (m) { return m.captured; })
-      .map(function (m) {
-        var c = new Chess(d.fenAfter);
-        c.move(m);
-        var back = c.moves({ verbose: true }).some(function (x) { return x.to === m.to && x.captured; });
-        return m.san + ' (' + NAME[m.piece] + ' takes ' + NAME[m.captured] + '; ' +
-          (back ? 'the player can take back, so this is not a free capture' : 'the player cannot take back') + ')';
-      });
-    var threat = drawn ? null : replyThreats(d.fenAfter, d.after.pv.length ? d.after.pv[0] : d.after.best);
+    var total = material(replyLine.chess, side);
+    var oppCaps = drawn ? [] : captureFacts(d.fenAfter);
+    var threat = drawn ? null : replyThreats(d.fenAfter, replyUci);
+    var freeCaps = oppCaps.filter(function (c) { return !c.back; });
+    var replyCap = oppCaps.filter(function (c) { return c.uci === replyUci; })[0] || null;
+    // A piece that has just captured something and is taken back is a trade, not a hung piece,
+    // unless it gave up clearly more than it took.
+    var took = d.move.captured ? VAL[d.move.captured] : 0;
+    function netLoss(c) { return VAL[c.captured] - (c.to === d.move.to ? took : 0); }
+    var hung = freeCaps.filter(function (c) { return c.captured !== 'p' && netLoss(c) >= 2; });
+    var trade = !!(d.move.captured && replyCap && replyCap.to === d.move.to && Math.abs(netLoss(replyCap)) < 2);
+    if (replyCap && replyCap.captured !== 'p' && hung.indexOf(replyCap) === -1 && VAL[replyCap.captured] > VAL[replyCap.piece] && netLoss(replyCap) >= 2) hung.push(replyCap);
+    var bestCap = captureFacts(d.fenBefore).filter(function (c) { return c.uci === bestUci; })[0] || null;
+    var hadMate = d.before.mate !== null && d.before.mate > 0 && label !== 'good';
+    var allowsMate = d.after.mate !== null && d.after.mate > 0;
+
+    // A big lead that drops to dead level after a checking reply is almost always a forced draw by repeated checks.
+    var slipped = !drawn && rawBefore >= 300 && Math.abs(rawAfter) <= 20 && (replyLine.sans[0] || '').indexOf('+') !== -1;
+    var theme;
+    if (label === 'good') theme = d.move.captured ? 'good capture' : 'good reply';
+    else if (drawn) theme = drawn.indexOf('stalemate') === 0 ? 'stalemate' : 'drawn a won game';
+    else if (hadMate) theme = 'missed checkmate';
+    else if (allowsMate) theme = 'allowed checkmate';
+    else if (hung.length) theme = 'hung piece';
+    else if (slipped) theme = 'let a win slip';
+    else if (threat && threat.loose) theme = 'missed threat';
+    else if (bestCap) theme = 'missed capture';
+    else if (trade) theme = 'trade';
+    else theme = 'other';
 
     var facts = {
       best: bestLine.sans[0] || '',
@@ -401,67 +460,56 @@
     }
 
     var note = {
-      ply: d.ply, moveNo: Math.floor(d.ply / 2) + 1, san: d.move.san, label: label, theme: null,
-      text: text, facts: facts, pending: false, byClaude: false, error: ''
+      ply: d.ply, moveNo: Math.floor(d.ply / 2) + 1, san: d.move.san, label: label, theme: theme,
+      text: text, facts: facts, pending: false, by: '', error: ''
     };
     notes.push(note);
 
-    if (coach.on && coach.sample) {
+    if (canExplain()) {
       note.pending = true;
-      var colour = side === 'w' ? 'White' : 'Black';
-      var lines = [
-        'You are a chess coach for a beginner rated about 500-600 on chess.com.',
-        'A chess engine has already judged the move. Every fact below comes from the engine or from the rules of chess.',
-        'Do not calculate, and do not mention any move, threat or variation that is not listed below. If the facts do not show why, say only what they do show.',
-        '',
-        'The player has the ' + colour + ' pieces. This was move ' + note.moveNo + '.',
-        'Verdict: ' + (label === 'good' ? 'good move, it punished the opponent\'s mistake' : label) + '.',
-        'Engine evaluation from the player\'s side, in pawns: ' + fmtEval(rawBefore) + ' before the move, ' + fmtEval(rawAfter) + ' after it.',
-        'Overall, after the player\'s move the engine rates the position as ' + standing(rawAfter) + '.',
-        'Pieces on the board before the move:',
-        pieceList(new Chess(d.fenBefore)),
-        'Position before the move (FEN): ' + d.fenBefore,
-        'The player\'s move: ' + d.move.san + (d.move.captured ? ' (captures a ' + NAME[d.move.captured] + ')' : ''),
-        'The engine\'s preferred move: ' + facts.best + '. Its expected line: ' + facts.bestLine + '.',
-        drawn
-          ? 'The player\'s move ended the game at once in a draw by ' + drawn + '. The player threw away a winning position.'
-          : 'The engine\'s expected line after the player\'s move, starting with the opponent\'s reply: ' + facts.replyLine + '.'
-      ];
-      if (!drawn) {
-        lines.push('Material count for the player compared with before the move (pawn 1, knight or bishop 3, rook 5, queen 9; approximate, taken at the end of each line): ' +
-          (matReply >= 0 ? '+' : '') + matReply + ' after the line that follows the player\'s move, ' + (matBest >= 0 ? '+' : '') + matBest + ' after the engine\'s preferred line.');
-        var total = material(replyLine.chess, side);
-        lines.push('Total material on the board at the end of the line that follows the player\'s move: the player is ' +
-          (total > 0 ? 'ahead by ' + points(total) : total < 0 ? 'behind by ' + points(-total) : 'level') + '.');
-        lines.push('Say the player is ahead, behind, winning or losing only as these two overall facts state. A move can win material while the player is still behind overall.');
-        if (threat) {
-          lines.push('After the opponent\'s reply ' + threat.san + ', the piece that just moved attacks: ' +
-            (threat.list.length ? threat.list.join(', ') : 'none of the player\'s pieces') + '.');
-        }
-        lines.push('Every capture the opponent could legally make right after the player\'s move, whether or not it is any good: ' + (captures.length ? captures.join(', ') : 'none') + '.');
-        lines.push('Only describe a capture as a problem if the player cannot take back or it is the first move of the engine\'s line. Never call a piece or pawn unprotected, hanging or free unless a fact above says so.');
+      // Only the decisive fact goes to the model. A long fact sheet made the local model reason at
+      // length and ramble; the reason for the verdict is chosen here, in code.
+      var replySan = replyLine.sans[0] || '';
+      var key;
+      if (label === 'good') {
+        key = 'the opponent\'s previous move was a mistake' + (d.move.captured ? ' that left the ' + NAME[d.move.captured] + ' on ' + d.move.to + ' where it could be taken' : '');
+      } else if (drawn) {
+        key = 'the move ended the game at once in a draw by ' + drawn + '. Before it the player was clearly winning';
+      } else if (hadMate) {
+        key = 'the player had a forced checkmate in ' + d.before.mate + ' starting with ' + facts.best + ' and missed it';
+      } else if (allowsMate) {
+        key = 'the move allows a forced checkmate in ' + d.after.mate + (replySan ? ', starting with ' + replySan : '');
+      } else if (slipped && !hung.length) {
+        key = 'before the move the player was clearly winning. After it the engine rates the game as level, most likely a draw by repeated checks, starting with the opponent\'s check ' + replySan;
+      } else if (hung.length) {
+        key = hung.map(function (c) { return 'the opponent can reply ' + c.san + ', taking the player\'s ' + NAME[c.captured] + ' on ' + c.to + (c.back ? ' with a less valuable piece' : ' for free'); }).join('; ');
+      } else if (threat && threat.loose) {
+        key = 'the opponent can reply ' + threat.san + ', and that piece then attacks ' +
+          threat.list.filter(function (t) { return t.indexOf('not defended') !== -1; }).join(' and ');
+      } else if (bestCap) {
+        key = 'the player missed a capture';
+      } else if (trade) {
+        key = 'the move was a roughly even trade: the player\'s ' + NAME[d.move.piece] + ' took a ' + NAME[d.move.captured] + ' on ' + d.move.to +
+          ' and the opponent takes back with ' + replyCap.san + '. Nothing was hung. The engine gives no further reason, so do not invent one';
+      } else {
+        key = 'the engine expects the opponent to reply ' + replySan + '; its expected line is ' + facts.replyLine + '. No piece is hung and no capture was missed. The engine gives no further reason, so do not invent one';
       }
-      if (d.after.mate !== null && d.after.mate > 0) lines.push('The player\'s move allows a forced checkmate in ' + d.after.mate + '.');
-      if (d.before.mate !== null && d.before.mate > 0 && label !== 'good') lines.push('The player had a forced checkmate in ' + d.before.mate + ' starting with ' + facts.best + ' and missed it.');
-      lines.push('',
-        'Reply with only a JSON object: {"comment": string, "theme": string}.',
-        'comment: at most three short sentences and under 60 words, in plain words, spoken to the player as "you". Say what went wrong or right, naming the pieces and squares from the facts above, then give one habit to apply next time. No evaluation numbers. No markdown.',
-        'theme: exactly one of: ' + THEMES.join(', ') + '.');
+      var bestText = label === 'good' ? '' : ' The engine preferred ' + facts.best +
+        (bestCap ? ', which captures a ' + NAME[bestCap.captured] + (bestCap.back ? '' : ' that the opponent could not take back') : '') + '.';
+      var u = [
+        'Facts: The player has ' + (side === 'w' ? 'White' : 'Black') + '. Move ' + note.moveNo + ': ' + d.move.san +
+          (d.move.captured ? ', capturing a ' + NAME[d.move.captured] : '') + '.',
+        'Verdict: ' + (label === 'good' ? 'good move, it punished the opponent\'s mistake' : label) + '.',
+        'After it the engine rates the position as ' + standing(rawAfter) + '.',
+        'Key fact: ' + key + '.' + bestText
+      ];
       var myGen = gen;
-      Promise.resolve().then(function () {
-        return coach.sample(lines.join('\n'), { modelTier: 'default' });
-      }).then(function (res) {
-        var r = parseReply(res && res.text);
-        if (r.comment) {
-          note.text = r.comment;
-          note.byClaude = true;
-          if (THEMES.indexOf(r.theme) !== -1) note.theme = r.theme;
-        } else {
-          note.error = 'empty reply';
-        }
+      explain('move', MOVE_SYSTEM, u.join('\n')).then(function (r) {
+        if (r.text) { note.text = r.text; note.by = r.by; }
+        else note.error = 'empty reply';
       }, function (err) {
         note.error = (err && (err.code || err.message)) || 'unknown error';
-        if (err && err.code === 'not_granted') { coach.on = false; coach.denied = true; }
+        providerFailed(err);
       }).then(function () {
         note.pending = false;
         if (myGen === gen || notes.indexOf(note) !== -1) { renderCoach(); renderSheet(); save(); }
@@ -472,58 +520,202 @@
     save();
   }
 
-  // What the opponent's replying piece attacks once it has moved, and whether each target is defended.
-  function replyThreats(fenAfter, uci) {
-    if (!uci) return null;
-    var c = new Chess(fenAfter);
-    var m = c.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci.length > 4 ? uci[4] : undefined });
-    if (!m) return null;
-    var parts = c.fen().split(' ');
-    parts[1] = parts[1] === 'w' ? 'b' : 'w';   // give the opponent a second move to see what the piece attacks
-    parts[3] = '-';
-    var f = new Chess(), list = [];
-    if (f.load(parts.join(' '))) {
-      list = f.moves({ square: m.to, verbose: true })
-        .filter(function (x) { return x.captured && x.captured !== 'k'; })
-        .map(function (x) {
-          var g = new Chess(f.fen());
-          g.move(x);
-          var def = g.moves({ verbose: true }).some(function (y) { return y.to === x.to && y.captured; });
-          return 'the player\'s ' + NAME[x.captured] + ' on ' + x.to + ' (' + (def ? 'defended' : 'not defended') + ')';
-        });
+  /* ---------- coach: commentary providers (D006) ----------
+     local-omlx   : the locally served page; a local model behind oMLX's OpenAI-compatible endpoint.
+     cloud-claude : the published artifact only; Claude on the viewer's account.
+     The provider is fixed by where the page runs. There is no fallback from one to the other. */
+  // The answer must come on a line starting with a marker, so it can be picked out of any reasoning the
+  // model writes first. A reply with no marker is discarded, never shown.
+  var MOVE_SYSTEM = [
+    'You are a chess coach for a beginner rated about 500-600. A chess engine has already judged the move. Turn the facts into one short comment for the player.',
+    'Use only the facts given. Never add a move, threat or reason that is not listed, and never contradict the engine.',
+    'Reply with exactly one line in this form and nothing after it:',
+    'COMMENT: <at most two short sentences and at most 30 words, spoken to the player as "you": what went wrong or right, then one habit for next time>',
+    'If the key fact gives no reason, say only what the engine preferred and what it expects in reply, then give a general habit. Do not explain why.',
+    'No evaluation numbers. No markdown.',
+    '',
+    'Two examples of the form.',
+    'Facts: Move 9: Qh5. Verdict: blunder. Key fact: the opponent can reply Nxh5, taking the player\'s queen on h5 for free. The engine preferred Qd2.',
+    'COMMENT: Your queen on h5 could simply be taken by the knight. Before each move, check which of your pieces the opponent can capture.',
+    'Facts: Move 14: Rxd5, capturing a rook. Verdict: good move, it punished the opponent\'s mistake. Key fact: the opponent\'s previous move was a mistake that left the rook on d5 where it could be taken.',
+    'COMMENT: You spotted the loose rook on d5 and took it. Keep scanning for loose pieces after every opponent move.'
+  ].join('\n');
+  var REVIEW_SYSTEM = [
+    'You are a chess coach for a beginner rated about 500-600, reviewing a game they just played against a computer opponent.',
+    'A chess engine judged every move. Use only the facts given. Never contradict the engine and never invent moves, positions or variations.',
+    'Reply with exactly one line in this form and nothing after it:',
+    'REVIEW: <at most three short sentences and at most 60 words, spoken to the player as "you": the pattern that cost or won the most, then one specific thing to practise next game>',
+    'If the player was clearly winning for many moves before the game ended, say that converting a won position faster is worth practising.',
+    'No evaluation numbers. No markdown. No lists.'
+  ].join('\n');
+  var LIMITS = { move: { marker: 'COMMENT:', sentences: 2, words: 40 }, review: { marker: 'REVIEW:', sentences: 3, words: 75 } };
+
+  var CFG = (window.CHESS_COACH_CONFIG && window.CHESS_COACH_CONFIG.local) || {};
+  var LOCAL = {
+    endpoint: String(CFG.endpoint || 'http://127.0.0.1:8000').replace(/\/+$/, ''),
+    token: CFG.token || '',
+    moveModel: CFG.moveModel || '',
+    reviewModel: CFG.reviewModel || CFG.moveModel || '',
+    temperature: typeof CFG.temperature === 'number' ? CFG.temperature : 0.2,
+    maxTokensMove: CFG.maxTokensMove || 1500,
+    maxTokensReview: CFG.maxTokensReview || 3000,
+    timeoutMs: CFG.timeoutMs || 180000
+  };
+
+  function canExplain() { return coach.resolved && coach.on; }
+
+  // Local models reason before they answer, inside <think> tags or as plain preamble. Keep only what
+  // follows the last marker, and hold it to the length limit in code as well as in the prompt.
+  function extractAnswer(text, kind) {
+    var lim = LIMITS[kind];
+    var t = String(text || '');
+    var close = t.lastIndexOf('</think>');
+    if (close !== -1) t = t.slice(close + 8);
+    var at = t.lastIndexOf(lim.marker);
+    if (at === -1) return '';
+    t = t.slice(at + lim.marker.length).split(/\n\s*\n/)[0].replace(/\s+/g, ' ').trim();
+    t = t.replace(/^[<"'`*\s]+|[>"'`*\s]+$/g, '');
+    var parts = t.match(/[^.!?]+[.!?]+(?=\s|$)|[^.!?]+$/g) || [t];
+    var out = [];
+    for (var i = 0; i < parts.length && out.length < lim.sentences; i++) {
+      var next = out.concat(parts[i].trim()).join(' ');
+      if (out.length && next.split(' ').length > lim.words) break;
+      out.push(parts[i].trim());
     }
-    return { san: m.san, list: list };
+    return out.join(' ');
   }
 
-  // Reads Claude's reply as {"comment", "theme"}; if it is not JSON, the whole reply is the comment.
-  function parseReply(text) {
-    var t = String(text || '').trim();
-    if (!t) return { comment: '', theme: '' };
-    var m = t.match(/\{[\s\S]*\}/);
-    if (m) {
-      try {
-        var o = JSON.parse(m[0]);
-        if (o && typeof o.comment === 'string') return { comment: o.comment.trim(), theme: typeof o.theme === 'string' ? o.theme.trim().toLowerCase() : '' };
-      } catch (e) { /* fall through to plain text */ }
+  function localFetch(path, body, timeoutMs) {
+    var ctl = new AbortController();
+    var timer = setTimeout(function () { ctl.abort(); }, timeoutMs);
+    var opt = { method: body ? 'POST' : 'GET', headers: { 'Authorization': 'Bearer ' + LOCAL.token }, signal: ctl.signal };
+    if (body) { opt.headers['Content-Type'] = 'application/json'; opt.body = JSON.stringify(body); }
+    return fetch(LOCAL.endpoint + path, opt).then(function (res) {
+      clearTimeout(timer);
+      if (!res.ok) throw { code: 'http ' + res.status };
+      return res.json();
+    }, function (err) {
+      clearTimeout(timer);
+      throw { code: err && err.name === 'AbortError' ? 'timed out' : 'unreachable' };
+    });
+  }
+
+  // One call for both providers. Resolves {text, by}; rejects {code}.
+  function explain(kind, system, user, onText) {
+    if (coach.kind === 'local-omlx') {
+      var model = kind === 'review' ? LOCAL.reviewModel : LOCAL.moveModel;
+      // One retry when the reply holds no answer line: the model sometimes reasons past its token limit.
+      var attempt = function (left) {
+        return localFetch('/v1/chat/completions', {
+          model: model, temperature: LOCAL.temperature,
+          max_tokens: kind === 'review' ? LOCAL.maxTokensReview : LOCAL.maxTokensMove,
+          messages: [{ role: 'system', content: system }, { role: 'user', content: user }]
+        }, LOCAL.timeoutMs).then(function (j) {
+          var msg = j && j.choices && j.choices[0] && j.choices[0].message;
+          var text = extractAnswer(msg && msg.content, kind);
+          if (text) return { text: text, by: model + ' (local)' };
+          if (left > 0) return attempt(left - 1);
+          throw { code: 'no answer in the reply' };
+        });
+      };
+      return attempt(1);
     }
-    return { comment: t.replace(/^```\w*|```$/g, '').trim(), theme: '' };
+    return Promise.resolve().then(function () {
+      var opt = { modelTier: 'default' };
+      if (onText) opt.onText = function (u) { var part = extractAnswer(u.text, kind); if (part) onText(part); };
+      return coach.sample(system + '\n\n' + user, opt);
+    }).then(function (res) {
+      var text = extractAnswer(res && res.text, kind);
+      if (!text) throw { code: 'no answer in the reply' };
+      return { text: text, by: 'Claude (cloud)' };
+    });
+  }
+
+  function providerFailed(err) {
+    var code = err && err.code;
+    if (coach.kind === 'local-omlx' && code === 'unreachable') { coach.on = false; coach.problem = 'unreachable'; }
+    if (coach.kind === 'cloud-claude' && code === 'not_granted') { coach.on = false; coach.problem = 'denied'; }
+  }
+
+  function probeLocal() {
+    coach.resolved = false;
+    coach.problem = '';
+    renderCoach();
+    return localFetch('/v1/models', null, 4000).then(function () {
+      coach.on = true;
+    }, function () {
+      coach.on = false;
+      coach.problem = 'unreachable';
+    }).then(function () { coach.resolved = true; renderCoach(); });
+  }
+
+  function initCoach() {
+    var c = window.claude;
+    if (!c || !c.use) { coach.kind = 'local-omlx'; probeLocal(); return; }
+    coach.kind = 'cloud-claude';
+    Promise.all([c.use('sample'), c.use('permissions')]).then(function (r) {
+      coach.sample = r[0]; coach.perms = r[1];
+      if (!coach.sample) { coach.problem = 'unavailable'; return null; }
+      var wanted = false;
+      try { wanted = localStorage.getItem(STORE_KEY + '-coach') === 'on'; } catch (e) { /* optional */ }
+      if (!coach.perms) { coach.on = wanted; return null; }
+      return coach.perms.state('sample').then(function (st) {
+        if (st === 'denied') coach.problem = 'denied';
+        else if (st === 'unavailable') { coach.problem = 'unavailable'; coach.sample = null; }
+        else if (st === 'granted' && wanted) coach.on = true;
+      });
+    }).then(null, function () { coach.sample = null; coach.problem = 'unavailable'; }).then(function () {
+      coach.resolved = true;
+      renderCoach();
+    });
+  }
+
+  // The one button in the coach panel: "Retry" for the local model, "Turn on coaching" for cloud Claude.
+  function gateAction() {
+    var btn = $('coach-on');
+    if (coach.kind === 'local-omlx') { probeLocal(); return; }
+    btn.disabled = true;
+    var ask = coach.perms ? coach.perms.request(['sample']) : Promise.resolve({ sample: 'granted' });
+    ask.then(function (res) {
+      var st = res && res.sample;
+      if (st === 'denied') coach.problem = 'denied';
+      else if (st === 'unavailable') { coach.problem = 'unavailable'; coach.sample = null; }
+      else coach.on = true;
+      try { localStorage.setItem(STORE_KEY + '-coach', coach.on ? 'on' : 'off'); } catch (e) { /* optional */ }
+    }, function () {}).then(function () { btn.disabled = false; renderCoach(); });
   }
 
   /* ---------- coach: panel ---------- */
   function renderCoach() {
-    var gate = $('coach-gate'), log = $('coach-log'), stateEl = $('coach-state');
-    var available = coach.resolved && !!coach.sample && !coach.denied;
-    gate.hidden = !(available && !coach.on);
-    if (!coach.resolved) stateEl.textContent = 'Checking…';
-    else if (coach.on) stateEl.textContent = 'On · explained by Claude';
-    else if (available) stateEl.textContent = 'Off · engine verdicts only';
-    else stateEl.textContent = 'Engine verdicts only';
+    var gate = $('coach-gate'), gateText = $('coach-gate-text'), gateBtn = $('coach-on');
+    var log = $('coach-log'), stateEl = $('coach-state');
+    var local = coach.kind === 'local-omlx';
+    var showGate = false;
+
+    if (!coach.resolved) {
+      stateEl.textContent = local ? 'Looking for the local model…' : 'Checking…';
+    } else if (coach.on) {
+      stateEl.textContent = local ? 'Local model · ' + LOCAL.moveModel : 'Cloud · Claude';
+    } else if (local) {
+      stateEl.textContent = 'Local model not reachable · engine verdicts only';
+      gateText.textContent = 'The local model at ' + LOCAL.endpoint + ' did not answer, so comments show the engine\'s verdict only. Start oMLX, then retry.';
+      gateBtn.textContent = 'Retry';
+      showGate = true;
+    } else if (!coach.problem) {
+      stateEl.textContent = 'Off · engine verdicts only';
+      gateText.textContent = 'The engine checks every move you make. When one is worth talking about, Claude explains it in plain words. Each explanation uses your Claude account.';
+      gateBtn.textContent = 'Turn on coaching';
+      showGate = true;
+    } else {
+      stateEl.textContent = 'Engine verdicts only';
+    }
+    gate.hidden = !showGate;
 
     log.textContent = '';
     if (!notes.length) {
       var msg = 'No comments yet. The coach stays quiet unless a move is worth talking about.';
-      if (coach.resolved && !available) {
-        msg = (coach.denied ? 'Claude\'s commentary is switched off for this page.' : 'Claude\'s commentary is not available in this view.') +
+      if (coach.resolved && !coach.on && !local && coach.problem) {
+        msg = (coach.problem === 'denied' ? 'Claude\'s commentary is switched off for this page.' : 'Claude\'s commentary is not available in this view.') +
           ' You still get the engine\'s verdict when a move is worth flagging.';
       }
       log.appendChild(el('p', 'coach-empty', msg));
@@ -533,23 +725,28 @@
       var card = el('div', 'note ' + n.label);
       var head = el('div', 'note-head');
       head.appendChild(el('span', 'note-move', n.moveNo + (n.ply % 2 === 0 ? '. ' : '… ') + n.san));
-      head.appendChild(el('span', 'note-label', LABEL[n.label] + (n.theme ? ' · ' + n.theme : '')));
+      head.appendChild(el('span', 'note-label', LABEL[n.label] + (n.theme && n.theme !== 'other' ? ' · ' + n.theme : '')));
       card.appendChild(head);
       card.appendChild(el('p', 'note-text' + (n.pending ? ' pending' : ''), n.pending ? 'The coach is writing…' : n.text));
       var f = n.facts;
-      var factText = n.label === 'good'
+      card.appendChild(el('p', 'note-facts', n.label === 'good'
         ? 'Evaluation ' + fmtEval(f.evalBefore) + ' → ' + fmtEval(f.evalAfter)
-        : 'Engine preferred ' + f.best + ' · evaluation ' + fmtEval(f.evalBefore) + ' → ' + fmtEval(f.evalAfter);
-      if (n.error) factText += ' · Claude did not answer (' + n.error + '), so this is the engine\'s verdict';
-      card.appendChild(el('p', 'note-facts', factText));
+        : 'Engine preferred ' + f.best + ' · evaluation ' + fmtEval(f.evalBefore) + ' → ' + fmtEval(f.evalAfter)));
+      if (!n.pending) {
+        var by = n.by || (n.byClaude ? 'Claude (cloud)' : '');
+        card.appendChild(el('p', 'note-by', by ? 'Written by ' + by
+          : 'Engine verdict only' + (n.error ? ' · the model did not answer (' + n.error + ')' : '')));
+      }
       log.appendChild(card);
     }
 
-    var rv = $('review'), btn = $('review-btn'), txt = $('review-text');
+    var rv = $('review'), btn = $('review-btn'), txt = $('review-text'), rby = $('review-by');
     rv.hidden = !isOver();
     if (isOver()) {
-      txt.textContent = review.text || (localReview() + (review.error ? ' Claude did not answer (' + review.error + ').' : ''));
-      btn.hidden = !(coach.on && coach.sample) || review.busy || !!review.byClaude;
+      txt.textContent = review.text || localReview();
+      rby.textContent = review.busy ? '' : review.by ? 'Written by ' + review.by
+        : 'Engine counts only' + (review.error ? ' · the model did not answer (' + review.error + ')' : '');
+      btn.hidden = !canExplain() || review.busy || !!review.by;
     }
   }
 
@@ -572,80 +769,41 @@
   }
 
   function askReview() {
-    if (!coach.sample || review.busy) return;
+    if (!canExplain() || review.busy) return;
     var s = gameStats();
     var yours = game.turn() === state.side;
     var outcome = state.resigned ? 'The player resigned.' : game.in_checkmate() ? (yours ? 'The player was checkmated.' : 'The player won by checkmate.') : 'The game was drawn (' + $('status-main').textContent + ').';
-    var lines = [
-      'You are a chess coach for a beginner rated about 500-600 on chess.com. Write a short review of the game they just played against a computer opponent.',
-      'A chess engine judged every move. Use only the facts below. Do not invent moves, positions or variations.',
-      '',
+    var themeCounts = Object.keys(s.themes).map(function (k) { return k + ' x' + s.themes[k]; }).join(', ');
+    var u = [
       'The player had the ' + (state.side === 'w' ? 'White' : 'Black') + ' pieces. ' + outcome + ' The game lasted ' + s.lastMove + ' moves.',
       'Flagged moves: ' + s.counts.blunder + ' blunders, ' + s.counts.mistake + ' mistakes, ' + s.counts.good + ' times the player punished an opponent mistake.',
+      'Kinds of flagged moment, counted: ' + (themeCounts || 'none') + '.',
       s.winMove !== null
         ? 'The engine first rated the player clearly winning (ahead by 7 pawns or more) after move ' + s.winMove + '. The game ended on move ' + s.lastMove + '.'
         : 'The engine never rated the player clearly winning (ahead by 7 pawns or more).',
       'The flagged moments, in order:'
     ];
-    if (!notes.length) lines.push('(none)');
+    if (!notes.length) u.push('(none)');
     notes.forEach(function (n) {
-      lines.push('- Move ' + n.moveNo + ', ' + n.san + ': ' + LABEL[n.label] + (n.theme ? ' (' + n.theme + ')' : '') + '. ' + n.text);
+      u.push('- Move ' + n.moveNo + ', ' + n.san + ': ' + LABEL[n.label] + (n.theme ? ' (' + n.theme + ')' : '') + '. ' + n.text);
     });
-    lines.push('',
-      'Write three to five short sentences in plain words, spoken to the player as "you". Name any pattern that came up more than once. If the player was clearly winning for many moves before the game ended, say that converting a won position faster is worth practising. End with one specific thing to practise next game. No markdown, no lists, no evaluation numbers.');
-    review.busy = true;
-    review.error = '';
-    review.text = 'The coach is writing…';
+    
+    review = { text: 'The coach is writing…' + (coach.kind === 'local-omlx' ? ' The review model takes about half a minute.' : ''), busy: true, by: '', error: '' };
     renderCoach();
     var myGen = gen;
-    coach.sample(lines.join('\n'), {
-      modelTier: 'default',
-      onText: function (u) { if (myGen === gen) { review.text = u.text; $('review-text').textContent = u.text; } }
+    explain('review', REVIEW_SYSTEM, u.join('\n'), function (t) {
+      if (myGen === gen) { review.text = t; $('review-text').textContent = t; }
     }).then(function (r) {
       if (myGen !== gen) return;
-      review.text = (r.text || '').trim();
-      review.byClaude = true;
+      if (r.text) { review.text = r.text; review.by = r.by; } else { review.text = ''; review.error = 'empty reply'; }
     }, function (err) {
       if (myGen !== gen) return;
       review.text = '';
       review.error = (err && (err.code || err.message)) || 'unknown error';
-      if (err && err.code === 'not_granted') { coach.on = false; coach.denied = true; }
+      providerFailed(err);
     }).then(function () {
-      review.busy = false;
-      if (myGen === gen) { renderCoach(); save(); }
+      if (myGen === gen) { review.busy = false; renderCoach(); save(); }
     });
-  }
-
-  function initCoach() {
-    var c = window.claude;
-    if (!c || !c.use) { coach.resolved = true; renderCoach(); return; }
-    Promise.all([c.use('sample'), c.use('permissions')]).then(function (r) {
-      coach.sample = r[0]; coach.perms = r[1];
-      if (!coach.sample) return null;
-      var wanted = false;
-      try { wanted = localStorage.getItem(STORE_KEY + '-coach') === 'on'; } catch (e) { /* optional */ }
-      if (!coach.perms) { coach.on = wanted; return null; }
-      return coach.perms.state('sample').then(function (st) {
-        if (st === 'denied' || st === 'unavailable') { coach.denied = st === 'denied'; if (st === 'unavailable') coach.sample = null; }
-        else if (st === 'granted' && wanted) coach.on = true;
-      });
-    }).then(null, function () { coach.sample = null; }).then(function () {
-      coach.resolved = true;
-      renderCoach();
-    });
-  }
-
-  function turnOnCoach() {
-    var btn = $('coach-on');
-    btn.disabled = true;
-    var ask = coach.perms ? coach.perms.request(['sample']) : Promise.resolve({ sample: 'granted' });
-    ask.then(function (res) {
-      var st = res && res.sample;
-      if (st === 'denied') coach.denied = true;
-      else if (st === 'unavailable') coach.sample = null;
-      else coach.on = true;
-      try { localStorage.setItem(STORE_KEY + '-coach', coach.on ? 'on' : 'off'); } catch (e) { /* optional */ }
-    }, function () {}).then(function () { btn.disabled = false; renderCoach(); });
   }
 
   /* ---------- play ---------- */
@@ -755,7 +913,7 @@
     var len = game.history().length;
     notes = notes.filter(function (n) { return n.ply < len; });
     track = track.filter(function (t) { return t.ply < len; });
-    review = { text: '', busy: false };
+    review = { text: '', busy: false, by: '', error: '' };
   }
 
   function newGame() {
@@ -785,7 +943,7 @@
     closePromotion();
     clearSelection();
     if (wasResigned) {   // un-resign: carry on from the same position
-      review = { text: '', busy: false };
+      review = { text: '', busy: false, by: '', error: '' };
       if (game.turn() !== state.side) engineTurn(); else { startPlayerTurn(); render(); }
       return;
     }
@@ -801,7 +959,7 @@
     return {
       pgn: game.pgn(), side: state.side, level: state.level, orientation: state.orientation, resigned: state.resigned,
       notes: notes.map(function (n) { var c = {}; for (var k in n) c[k] = n[k]; c.pending = false; return c; }),
-      track: track, review: review.byClaude ? review.text : ''
+      track: track, review: review.by ? review.text : '', reviewBy: review.by || ''
     };
   }
   function save() {
@@ -821,7 +979,7 @@
     if (Array.isArray(data.track)) {
       track = data.track.filter(function (t) { return t && typeof t.ply === 'number' && t.ply < len && typeof t.evalAfter === 'number'; });
     }
-    if (typeof data.review === 'string' && data.review) review = { text: data.review, busy: false, byClaude: true };
+    if (typeof data.review === 'string' && data.review) review = { text: data.review, busy: false, by: typeof data.reviewBy === 'string' && data.reviewBy ? data.reviewBy : 'Claude (cloud)', error: '' };
   }
 
   /* ---------- wiring ---------- */
@@ -849,7 +1007,7 @@
     btn.textContent = 'Confirm resign';
     setTimeout(function () { if (resignArmed) { resignArmed = false; btn.textContent = 'Resign'; } }, 4000);
   });
-  $('coach-on').addEventListener('click', turnOnCoach);
+  $('coach-on').addEventListener('click', gateAction);
   $('review-btn').addEventListener('click', askReview);
   $('copy-pgn').addEventListener('click', function () {
     var btn = this, text = pgnText(), out = $('pgn-out');
