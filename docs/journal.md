@@ -33,6 +33,43 @@ a new entry correcting it. The wrongness is part of the record.
 - Next: build the first playable board page (legal moves, engine opponent), then
   add the commentary.
 
+## 2026-10-10 — playable board, coaching, and the move to a local page and model
+
+Covers the work since the 2026-10-09 entry; the first three commits below
+landed late on 2026-10-09, the last on 2026-10-10.
+
+- First playable board committed at `b048719`: `web/chess_coach.html`, with
+  Stockfish 10 (asm.js build) and chess.js 0.10.3 vendored under `web/vendor/`.
+- Move-by-move coaching, an end-of-game review and a Resign button committed at
+  `6e466ea`, with the logic moved into `web/coach.js`. It first ran as a
+  published Claude artifact calling cloud Claude.
+- Recorded D005 (page served locally; artifact an optional cloud build) and
+  D006 (local-omlx commentary by default) at `69de420`, superseding D003.
+- Local page and local-omlx provider committed at `6cc7461`.
+  `web/chess_coach.html` was removed in favour of `web/index.html`, a complete
+  HTML document; `scripts/make_artifact.py` derives the artifact form from it.
+  `web/config.js` holds the local provider's settings.
+- Gremlins, each a real failure found in play:
+  1. The first cloud calls failed silently: the code hid the errors, and it
+     used the JSON form of the call.
+  2. A move that ended the game by stalemate was not judged at all.
+  3. Claude called a defended pawn unprotected, because it was given every
+     legal capture with no indication of which were good.
+  4. Claude said the player was ahead when they were losing, because it was
+     given the material gained, not the overall standing.
+  5. The local model's reasoning was shown as the comment. It reasoned in plain
+     text with no think tags and ran into the token limit. Fixed by requiring
+     the answer on a `COMMENT:` line, discarding replies without one, and
+     capping the length in code.
+  6. A fix reported as delivered to the repo was not: the file copy delivered a
+     stale version. Caught by checking the file on disk. A visible build number
+     was added to the page so a stale copy shows.
+  7. An even trade was labelled a hung piece.
+- Current state: build `2026-10-10.4`. Comments from Ornith run to one or two
+  sentences. Thresholds: mistake at 200 centipawns lost, blunder at 400, and no
+  flag when the player is still 500 or more ahead after the move.
+- Next: seed the open-questions backlog.
+
 <!-- Entry shape:
 
 ## YYYY-MM-DD — short summary of the session

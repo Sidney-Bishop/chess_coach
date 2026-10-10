@@ -46,3 +46,18 @@ gets the one-line record of the concept that now carries it.
   artifact's content-security policy blocks fetches to a local model server.
   Linked from the [decisions index](/decisions/) with the D003 → D005 chain
   recorded; the root [index](/index.md) range updated to D001–D006.
+
+## 2026-10-10
+
+* **Rewrite**: [Architecture](/architecture.md) rewritten from the scaffold's
+  placeholders to describe the page as built at build `2026-10-10.4`: the files
+  under `web/`, serving over HTTP rather than `file://`, the engine worker and
+  its single search queue, the judging flow and thresholds, the facts computed
+  in code, the `local-omlx` and `cloud-claude` providers and how the page
+  chooses between them, the answer marker and length cap, persistence in
+  browser storage, and how `scripts/make_artifact.py` derives the artifact
+  form. Links [D002](/decisions/D002-engine-judges-llm-explains.md),
+  [D004](/decisions/D004-coaching-pitched-at-500-600-player.md),
+  [D005](/decisions/D005-page-served-locally-artifact-optional-cloud-build.md)
+  and [D006](/decisions/D006-commentary-provider-local-omlx-default.md).
+  `generated` moved to 2026-10-10 and `stale_after` to 2027-01-08.
