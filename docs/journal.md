@@ -69,6 +69,9 @@ landed late on 2026-10-09, the last on 2026-10-10.
   sentences. Thresholds: mistake at 200 centipawns lost, blunder at 400, and no
   flag when the player is still 500 or more ahead after the move.
 - Next: seed the open-questions backlog.
+- Done the same day: opened Q001–Q005 in `knowledge/open-questions/`: level-1 opponent strength,
+  flag thresholds, coaching opening principles, checking comments for false
+  statements, and remembering patterns across games.
 
 <!-- Entry shape:
 

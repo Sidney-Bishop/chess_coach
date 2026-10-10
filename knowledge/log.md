@@ -61,3 +61,11 @@ gets the one-line record of the concept that now carries it.
   [D005](/decisions/D005-page-served-locally-artifact-optional-cloud-build.md)
   and [D006](/decisions/D006-commentary-provider-local-omlx-default.md).
   `generated` moved to 2026-10-10 and `stale_after` to 2027-01-08.
+* **Creation**: five open questions seeding the backlog, all **Open** —
+  [Q001 — how strong should the level-1 opponent be for a 500-600 rated player?](/open-questions/Q001-level-one-opponent-strength.md),
+  [Q002 — are the flag thresholds right?](/open-questions/Q002-flag-thresholds.md),
+  [Q003 — how should opening principles be coached?](/open-questions/Q003-coaching-opening-principles.md),
+  [Q004 — how do we know a comment says nothing false?](/open-questions/Q004-checking-comments-for-false-statements.md) and
+  [Q005 — should the coach remember patterns across games?](/open-questions/Q005-patterns-across-games.md).
+  Linked from the [open-questions index](/open-questions/); the root
+  [index](/index.md) line updated to Q001–Q005.
