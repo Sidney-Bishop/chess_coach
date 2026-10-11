@@ -130,6 +130,12 @@ select:focus-visible, .btn:focus-visible { outline: 3px solid var(--accent); out
 .coach-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--line); }
 .coach-head h2 { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; margin: 0; }
 .coach-head span { font-size: 0.78rem; color: var(--muted); }
+.voice-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--line); font-size: 0.85rem; }
+.voice-toggle { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; cursor: pointer; white-space: nowrap; }
+.voice-toggle input { width: 16px; height: 16px; accent-color: var(--accent); }
+.voice-row select { min-height: 30px; padding: 3px 6px; font-size: 0.8rem; min-width: 0; flex: 1 1 90px; }
+.voice-row #voice-rate { flex: 0 0 auto; }
+.speak-btn { align-self: flex-start; min-height: 26px; padding: 2px 10px; font-size: 0.76rem; }
 .coach-gate { padding: 12px; display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
 .coach-gate p, .coach-empty { margin: 0; font-size: 0.88rem; color: var(--muted); }
 .coach-empty { padding: 12px; }
@@ -180,6 +186,15 @@ select:focus-visible, .btn:focus-visible { outline: 3px solid var(--accent); out
 
       <section class="coach" aria-label="Coach">
         <div class="coach-head"><h2>Coach</h2><span id="coach-state">Checking…</span></div>
+        <div class="voice-row" id="voice-row" hidden>
+          <label class="voice-toggle" for="voice-on"><input type="checkbox" id="voice-on"> Speak comments</label>
+          <select id="voice-name" aria-label="Voice"></select>
+          <select id="voice-rate" aria-label="Speaking speed">
+            <option value="0.85">Slow</option>
+            <option value="1">Normal</option>
+            <option value="1.2">Fast</option>
+          </select>
+        </div>
         <div class="coach-gate" id="coach-gate" hidden>
           <p id="coach-gate-text">The engine checks every move you make. When one is worth talking about, Claude explains it in plain words. Each explanation uses your Claude account.</p>
           <button class="btn primary" id="coach-on" type="button">Turn on coaching</button>
@@ -190,6 +205,7 @@ select:focus-visible, .btn:focus-visible { outline: 3px solid var(--accent); out
           <p id="review-text"></p>
           <p class="review-by" id="review-by"></p>
           <button class="btn primary" id="review-btn" type="button">Review this game</button>
+          <button class="btn" id="review-speak" type="button">Speak the review</button>
         </div>
       </section>
 
@@ -231,8 +247,8 @@ select:focus-visible, .btn:focus-visible { outline: 3px solid var(--accent); out
   </div>
 </main>
 
-<script src="vendor/chess.js?v=2026-10-10.4"></script>
-<script src="config.js?v=2026-10-10.4"></script>
-<script src="coach.js?v=2026-10-10.4"></script>
+<script src="vendor/chess.js?v=2026-10-10.5"></script>
+<script src="config.js?v=2026-10-10.5"></script>
+<script src="coach.js?v=2026-10-10.5"></script>
 </body>
 </html>

@@ -73,6 +73,21 @@ landed late on 2026-10-09, the last on 2026-10-10.
   flag thresholds, coaching opening principles, checking comments for false
   statements, and remembering patterns across games.
 
+## 2026-10-11 — release 1.0.0, branching model, and the coach's voice
+
+- Version 1.0.0 tagged `v1.0.0` at `1d86b6f` and pushed to the private GitHub
+  repo, `Sidney-Bishop/chess_coach`.
+- `develop` created as the integration branch.
+- Spoken coach comments built on `feature/coach-voice` and committed at
+  `1bbd3e1`: the browser's own speech synthesis, off until "Speak comments" is
+  ticked, with chess notation turned into words in code.
+- Before the player heard it, the speech was tested only with a stand-in that
+  recorded the words passed to it, not with a real voice.
+- The player confirmed by ear on 2026-10-10 that it works well.
+- Recorded D007 (comments spoken with the browser's speech synthesis) and D008
+  (main for releases, develop for integration, feature branches off develop).
+- Next: merge `feature/coach-voice` into `develop` and release as 1.1.0.
+
 <!-- Entry shape:
 
 ## YYYY-MM-DD — short summary of the session
