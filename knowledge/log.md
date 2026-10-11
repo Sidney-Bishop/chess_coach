@@ -86,3 +86,11 @@ gets the one-line record of the concept that now carries it.
   `2026-10-10.5`, and [D007](/decisions/D007-coach-comments-spoken-with-browser-speech-synthesis.md)
   is added to its links. `generated` moved to 2026-10-11 and `stale_after` to
   2027-01-09.
+* **Update**: [Architecture](/architecture.md) describes the voice list's two
+  groups, "On this computer" and "Online: text is sent to the provider", and
+  the warning line shown when an online voice is chosen. The cited build moves
+  to `2026-10-11.1`. `generated` (2026-10-11) and `stale_after` (2027-01-09)
+  were already current. The trade-off in
+  [D007](/decisions/D007-coach-comments-spoken-with-browser-speech-synthesis.md)
+  that the list does not mark local and network voices is now addressed in
+  the code; D007 is left unedited, because decisions are not edited in place.

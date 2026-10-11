@@ -16,7 +16,7 @@ This is a **state** concept: overwrite it as the architecture changes. The
 the *story* of how it got there lives in `docs/journal.md`. This concept just
 says what *is*.
 
-All of this describes the code as of 2026-10-11, build `2026-10-10.5`.
+All of this describes the code as of 2026-10-11, build `2026-10-11.1`.
 
 # Components
 
@@ -37,7 +37,7 @@ code: the engine, the judging and the calls to the model all run in the page.
   input, the engine wrapper, the engine opponent, the judging of the player's
   moves, the two commentary providers, the coach panel, the coach voice, the
   game review, persistence and event wiring. Its `BUILD` constant
-  (`2026-10-10.5`) is shown
+  (`2026-10-11.1`) is shown
   in the engine line under the scoresheet.
 - `web/vendor/` — third-party files, not edited by hand. `chess.js` 0.10.3
   (rules, legal moves, SAN, PGN) and `stockfish.asm.js` (Stockfish 10, npm
@@ -191,7 +191,9 @@ offers.
 
 - **Controls.** A row under the coach heading in `index.html` (`voice-row`):
   a "Speak comments" checkbox (`voice-on`), a voice list (`voice-name`) and a
-  speed list (`voice-rate`: Slow 0.85, Normal 1, Fast 1.2). Each finished note
+  speed list (`voice-rate`: Slow 0.85, Normal 1, Fast 1.2), with a warning
+  line (`voice-hint`) below them, hidden unless an online voice is chosen.
+  Each finished note
   card has a Speak button (`speak-btn`), and the review has its own
   (`review-speak`).
 - **Storage.** `{ on, name, rate }` is saved under `chess-coach-v1-voice` on
@@ -221,6 +223,14 @@ offers.
   Chrome fills the list a moment after load. The voice used is the saved one,
   else the browser's default, else one matching the browser language, else the
   first.
+- **Local and online voices.** `renderVoice` splits the list into two
+  `<optgroup>`s by the browser's `localService` flag: "On this computer" and
+  "Online: text is sent to the provider". An empty group is left out. Each
+  online voice's option also ends "· online". When the voice in use is an
+  online one, the warning line shows "<name> is an online voice: the text of
+  each comment is sent to its provider to be spoken. Voices under "On this
+  computer" keep it on your machine." Changing the voice re-renders the row,
+  so the warning follows the selection.
 - **No speech support.** If `speechSynthesis` or `SpeechSynthesisUtterance` is
   missing, the voice row stays hidden, no Speak buttons are drawn, and `say`
   does nothing.
