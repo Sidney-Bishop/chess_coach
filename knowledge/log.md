@@ -69,3 +69,20 @@ gets the one-line record of the concept that now carries it.
   [Q005 — should the coach remember patterns across games?](/open-questions/Q005-patterns-across-games.md).
   Linked from the [open-questions index](/open-questions/); the root
   [index](/index.md) line updated to Q001–Q005.
+
+## 2026-10-11
+
+* **Creation**: two decisions, both **Active** —
+  [D007 — the coach's comments are spoken with the browser's built-in speech synthesis](/decisions/D007-coach-comments-spoken-with-browser-speech-synthesis.md)
+  and
+  [D008 — branching and release model: main for releases, develop for integration, feature branches off develop](/decisions/D008-branching-main-releases-develop-integration.md).
+  Neither supersedes anything. Linked from the [decisions index](/decisions/)
+  and added to its Standalone list; the root [index](/index.md) range updated
+  to D001–D008.
+* **Update**: [Architecture](/architecture.md) gains a section on the coach
+  voice — where speech is triggered, the notation-to-words step, the controls,
+  the `chess-coach-v1-voice` storage key, and behaviour without speech
+  support — and the key is added to Persistence. The cited build moves to
+  `2026-10-10.5`, and [D007](/decisions/D007-coach-comments-spoken-with-browser-speech-synthesis.md)
+  is added to its links. `generated` moved to 2026-10-11 and `stale_after` to
+  2027-01-09.

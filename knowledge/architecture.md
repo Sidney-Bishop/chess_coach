@@ -1,10 +1,10 @@
 ---
 type: Reference
 title: "chess_coach — Architecture"
-description: How chess_coach is built right now — the files under web/, how the page is served, the engine queue, the judging flow, the two commentary providers, persistence, and how the artifact form is derived.
+description: How chess_coach is built right now — the files under web/, how the page is served, the engine queue, the judging flow, the two commentary providers, the spoken coach voice, persistence, and how the artifact form is derived.
 tags: [reference, architecture, web, engine, commentary]
-generated: { by: human:jason-roche, at: 2026-10-10T00:00:00Z }
-stale_after: 2027-01-08T00:00:00Z
+generated: { by: human:jason-roche, at: 2026-10-11T00:00:00Z }
+stale_after: 2027-01-09T00:00:00Z
 ---
 
 How chess_coach is built **right now** — the moving parts, how they fit, the
@@ -16,7 +16,7 @@ This is a **state** concept: overwrite it as the architecture changes. The
 the *story* of how it got there lives in `docs/journal.md`. This concept just
 says what *is*.
 
-All of this describes the code as of 2026-10-10, build `2026-10-10.4`.
+All of this describes the code as of 2026-10-11, build `2026-10-10.5`.
 
 # Components
 
@@ -35,8 +35,9 @@ code: the engine, the judging and the calls to the model all run in the page.
   Read only by the local provider; `coach.js` has defaults for every field.
 - `web/coach.js` — all the application logic, in one IIFE: the board and move
   input, the engine wrapper, the engine opponent, the judging of the player's
-  moves, the two commentary providers, the coach panel, the game review,
-  persistence and event wiring. Its `BUILD` constant (`2026-10-10.4`) is shown
+  moves, the two commentary providers, the coach panel, the coach voice, the
+  game review, persistence and event wiring. Its `BUILD` constant
+  (`2026-10-10.5`) is shown
   in the engine line under the scoresheet.
 - `web/vendor/` — third-party files, not edited by hand. `chess.js` 0.10.3
   (rules, legal moves, SAN, PGN) and `stockfish.asm.js` (Stockfish 10, npm
@@ -57,7 +58,8 @@ Chrome will not start the Stockfish Web Worker from a `file://` page, and only
 a locally served page can reach a model server on the same machine
 ([D005](/decisions/D005-page-served-locally-artifact-optional-cloud-build.md)).
 The page has no network dependency beyond Google Fonts and, when coaching is
-on, the oMLX endpoint.
+on, the oMLX endpoint — and, if the player picks one, a voice the browser
+provides over the network (see [The coach voice](#the-coach-voice)).
 
 # The engine worker and the search queue
 
@@ -179,6 +181,50 @@ On `local-omlx` a reply with no answer is retried once; if the retry has none
 either, the call fails with "no answer in the reply" and the note keeps its
 engine-only text.
 
+# The coach voice
+
+Comments and the game review can be read aloud with the browser's own speech
+synthesis (`window.speechSynthesis`)
+([D007](/decisions/D007-coach-comments-spoken-with-browser-speech-synthesis.md)).
+There is no server or model behind it; the voices are whatever the browser
+offers.
+
+- **Controls.** A row under the coach heading in `index.html` (`voice-row`):
+  a "Speak comments" checkbox (`voice-on`), a voice list (`voice-name`) and a
+  speed list (`voice-rate`: Slow 0.85, Normal 1, Fast 1.2). Each finished note
+  card has a Speak button (`speak-btn`), and the review has its own
+  (`review-speak`).
+- **Storage.** `{ on, name, rate }` is saved under `chess-coach-v1-voice` on
+  every change and read back by `initVoice` at start; a saved rate other than
+  the three offered is ignored. Speaking is off until the player ticks the box.
+- **Where speech is triggered.** `say` speaks only when speaking is on, unless
+  forced by a button.
+  - In `assess`, a note that is not waiting for the model (coaching off) is
+    spoken at once; a note waiting for the model is spoken when its reply
+    arrives or fails, and only if the game has not been reset or taken back
+    since (`myGen === gen`). Either way it is spoken once, as `noteSpeech`:
+    the verdict label, then the text — "Blunder. …".
+  - When the model's game review arrives it is spoken, prefixed "Game review.".
+  - Ticking the box says "Coach voice on."; unticking it stops speech.
+  - Forced, even with speaking off: a note's Speak button, the review's Speak
+    button, and a short sample when the voice or speed is changed.
+- **One voice at a time.** `say` cancels whatever is being spoken before it
+  starts. `stopEngine` — called by new game, take back and resign — also stops
+  speech.
+- **Notation to words.** `speakable` rewrites SAN before it reaches the voice:
+  castling (`O-O`, `O-O-O`), piece moves and captures, pawn captures, bare
+  squares, promotion and check / checkmate — "Nxe4+" becomes "knight takes
+  E 4, check". A comma is added after "check" when more words follow.
+- **Voice list.** `loadVoices` keeps the voices whose language starts `en`,
+  or all voices if there are none, with voices the browser marks local first,
+  then by name. It runs at start and again on `onvoiceschanged`, because
+  Chrome fills the list a moment after load. The voice used is the saved one,
+  else the browser's default, else one matching the browser language, else the
+  first.
+- **No speech support.** If `speechSynthesis` or `SpeechSynthesisUtterance` is
+  missing, the voice row stays hidden, no Speak buttons are drawn, and `say`
+  does nothing.
+
 # Persistence
 
 The game is saved to `localStorage` under `chess-coach-v1` on every render and
@@ -186,7 +232,8 @@ after every judgement: the PGN, side, level, board orientation, resigned flag,
 the notes (any pending one saved as not pending), the evaluation track, and
 the review only if a model wrote it. On load it is restored with each field
 checked, and anything inconsistent with the restored game dropped. The cloud
-opt-in is a separate key, `chess-coach-v1-coach`. Every storage access is in
+opt-in is a separate key, `chess-coach-v1-coach`, and the voice settings
+another, `chess-coach-v1-voice`. Every storage access is in
 `try/catch`; the page works without storage. When `window.claude.hot` exists,
 the page also hands it a snapshot and starts from its data.
 
@@ -236,5 +283,7 @@ settings in `config.js` go unused
   why the page is served locally and the artifact is derived.
 - [D006](/decisions/D006-commentary-provider-local-omlx-default.md) — the
   providers and the no-fallback rule.
+- [D007](/decisions/D007-coach-comments-spoken-with-browser-speech-synthesis.md) —
+  why comments are spoken with the browser's speech synthesis.
 - [Decisions](/decisions/) — the full log.
 - [Pitfalls](/pitfalls.md) — the constraints that fail quietly.

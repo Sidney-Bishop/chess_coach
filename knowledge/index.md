@@ -16,7 +16,7 @@ because a summary here would rot.
 
 # Subdirectories
 
-* [Decisions](/decisions/) - The D-ID decision log: what was chosen and why, preserved as historical records with live statuses. Currently D001–D006.
+* [Decisions](/decisions/) - The D-ID decision log: what was chosen and why, preserved as historical records with live statuses. Currently D001–D008.
 * [Open questions](/open-questions/) - The Q-ID question log, open and closed. Currently Q001–Q005, all open.
 
 # History

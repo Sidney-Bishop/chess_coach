@@ -1,6 +1,6 @@
 /* Chess Coach configuration (D006).
    Settings for the local commentary provider, used when the page is served from web/.
-   The published artifact ignores this file and uses cloud Claude instead.
+   The published artifact also loads this file but leaves these settings unused: it uses cloud Claude.
    The token is the loopback literal for a server bound to 127.0.0.1, not a secret. */
 window.CHESS_COACH_CONFIG = {
   local: {
