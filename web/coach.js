@@ -32,7 +32,7 @@
   };
   var LABEL = { blunder: 'Blunder', mistake: 'Mistake', good: 'Well played' };
   var MARK = { blunder: '??', mistake: '?', good: '!' };
-  var BUILD = '2026-10-10.4';   // shown under the scoresheet, so a stale cached script is visible
+  var BUILD = '2026-10-10.5';   // shown under the scoresheet, so a stale cached script is visible
   var STORE_KEY = 'chess-coach-v1';
 
   var $ = function (id) { return document.getElementById(id); };
@@ -47,6 +47,12 @@
   var review = { text: '', busy: false, by: '', error: '' };
   var judge = { before: null, prevAfter: null };
   var resignArmed = false;
+  // Spoken comments: the browser's own speech synthesis, using voices installed on this machine.
+  var voice = {
+    synth: window.speechSynthesis || null,
+    supported: !!window.speechSynthesis && typeof window.SpeechSynthesisUtterance === 'function',
+    on: false, name: '', rate: 1, list: []
+  };
   var coach = { kind: '', resolved: false, on: false, problem: '', sample: null, perms: null };
 
   /* ---------- engine ---------- */
@@ -513,8 +519,10 @@
       }).then(function () {
         note.pending = false;
         if (myGen === gen || notes.indexOf(note) !== -1) { renderCoach(); renderSheet(); save(); }
+        if (myGen === gen) say(noteSpeech(note));
       });
     }
+    if (!note.pending) say(noteSpeech(note));
     renderCoach();
     renderSheet();
     save();
@@ -685,6 +693,93 @@
     }, function () {}).then(function () { btn.disabled = false; renderCoach(); });
   }
 
+  /* ---------- coach: voice ---------- */
+  var PIECE_WORD = { K: 'king', Q: 'queen', R: 'rook', B: 'bishop', N: 'knight' };
+  function sayEnd(promo, mark) {
+    return (promo ? ', promoting to a ' + PIECE_WORD[promo[1]] : '') + (mark === '#' ? ', checkmate' : mark === '+' ? ', check' : '');
+  }
+  function saySquare(sq) { return sq[0].toUpperCase() + ' ' + sq[1]; }
+  // Turns chess notation into words a voice can read: "Nxe4+" becomes "knight takes E 4, check".
+  function speakable(text) {
+    return String(text || '')
+      .replace(/\bO-O-O([+#])?/g, function (m, mark) { return 'castles queenside' + sayEnd('', mark); })
+      .replace(/\bO-O([+#])?/g, function (m, mark) { return 'castles kingside' + sayEnd('', mark); })
+      .replace(/\b([KQRBN])([a-h]?[1-8]?)(x?)([a-h][1-8])(=[QRBN])?([+#])?/g, function (m, p, from, x, to, promo, mark) {
+        return PIECE_WORD[p] + (x ? ' takes ' : ' to ') + saySquare(to) + sayEnd(promo, mark);
+      })
+      .replace(/\b([a-h])x([a-h][1-8])(=[QRBN])?([+#])?/g, function (m, file, to, promo, mark) {
+        return 'pawn takes ' + saySquare(to) + sayEnd(promo, mark);
+      })
+      .replace(/\b([a-h][1-8])(=[QRBN])?([+#])?(?![A-Za-z0-9])/g, function (m, sq, promo, mark) {
+        return saySquare(sq) + sayEnd(promo, mark);
+      })
+      .replace(/, (check|checkmate)(?= [A-Za-z])/g, ', $1,')
+      .replace(/\s+/g, ' ').trim();
+  }
+
+  function chosenVoice() {
+    var i, list = voice.list;
+    for (i = 0; i < list.length; i++) if (list[i].name === voice.name) return list[i];
+    var lang = (navigator.language || 'en').toLowerCase();
+    for (i = 0; i < list.length; i++) if (list[i].default) return list[i];
+    for (i = 0; i < list.length; i++) if (list[i].lang.toLowerCase() === lang) return list[i];
+    return list[0] || null;
+  }
+  function loadVoices() {
+    if (!voice.supported) return;
+    var all = voice.synth.getVoices() || [];
+    var english = all.filter(function (v) { return /^en([-_]|$)/i.test(v.lang); });
+    voice.list = (english.length ? english : all).slice().sort(function (a, b) {
+      return (b.localService ? 1 : 0) - (a.localService ? 1 : 0) || a.name.localeCompare(b.name);
+    });
+    renderVoice();
+  }
+  function saveVoice() {
+    try { localStorage.setItem(STORE_KEY + '-voice', JSON.stringify({ on: voice.on, name: voice.name, rate: voice.rate })); } catch (e) { /* optional */ }
+  }
+  function stopSpeaking() { if (voice.supported) { try { voice.synth.cancel(); } catch (e) { /* nothing to stop */ } } }
+  // force: a replay button was pressed, so speak even when automatic speaking is off.
+  function say(text, force) {
+    if (!voice.supported || (!voice.on && !force) || !text) return;
+    stopSpeaking();
+    var u = new window.SpeechSynthesisUtterance(speakable(text));
+    var v = chosenVoice();
+    if (v) { u.voice = v; u.lang = v.lang; }
+    u.rate = voice.rate;
+    voice.synth.speak(u);
+  }
+  function noteSpeech(n) { return LABEL[n.label] + '. ' + n.text; }
+  function renderVoice() {
+    var row = $('voice-row');
+    row.hidden = !voice.supported;
+    if (!voice.supported) return;
+    $('voice-on').checked = voice.on;
+    var sel = $('voice-name'), cur = chosenVoice();
+    sel.textContent = '';
+    voice.list.forEach(function (v) {
+      var o = document.createElement('option');
+      o.value = v.name;
+      o.textContent = v.name + ' (' + v.lang + ')';
+      sel.appendChild(o);
+    });
+    if (cur) sel.value = cur.name;
+    sel.disabled = !voice.list.length;
+    $('voice-rate').value = String(voice.rate);
+  }
+  function initVoice() {
+    if (!voice.supported) { renderVoice(); return; }
+    try {
+      var saved = JSON.parse(localStorage.getItem(STORE_KEY + '-voice') || 'null');
+      if (saved) {
+        voice.on = saved.on === true;
+        if (typeof saved.name === 'string') voice.name = saved.name;
+        if ([0.85, 1, 1.2].indexOf(saved.rate) !== -1) voice.rate = saved.rate;
+      }
+    } catch (e) { /* optional */ }
+    loadVoices();
+    voice.synth.onvoiceschanged = loadVoices;   // Chrome fills the voice list a moment after load
+  }
+
   /* ---------- coach: panel ---------- */
   function renderCoach() {
     var gate = $('coach-gate'), gateText = $('coach-gate-text'), gateBtn = $('coach-on');
@@ -736,6 +831,13 @@
         var by = n.by || (n.byClaude ? 'Claude (cloud)' : '');
         card.appendChild(el('p', 'note-by', by ? 'Written by ' + by
           : 'Engine verdict only' + (n.error ? ' · the model did not answer (' + n.error + ')' : '')));
+        if (voice.supported) {
+          var sb = el('button', 'btn speak-btn', 'Speak');
+          sb.type = 'button';
+          sb.dataset.ply = String(n.ply);
+          sb.setAttribute('aria-label', 'Speak the comment on move ' + n.moveNo);
+          card.appendChild(sb);
+        }
       }
       log.appendChild(card);
     }
@@ -747,6 +849,7 @@
       rby.textContent = review.busy ? '' : review.by ? 'Written by ' + review.by
         : 'Engine counts only' + (review.error ? ' · the model did not answer (' + review.error + ')' : '');
       btn.hidden = !canExplain() || review.busy || !!review.by;
+      $('review-speak').hidden = !voice.supported || review.busy;
     }
   }
 
@@ -795,7 +898,7 @@
       if (myGen === gen) { review.text = t; $('review-text').textContent = t; }
     }).then(function (r) {
       if (myGen !== gen) return;
-      if (r.text) { review.text = r.text; review.by = r.by; } else { review.text = ''; review.error = 'empty reply'; }
+      if (r.text) { review.text = r.text; review.by = r.by; say('Game review. ' + r.text); } else { review.text = ''; review.error = 'empty reply'; }
     }, function (err) {
       if (myGen !== gen) return;
       review.text = '';
@@ -903,6 +1006,7 @@
   function stopEngine() {
     gen++;
     Engine.cancel();
+    stopSpeaking();
     state.thinking = false;
     state.resigned = false;
     judge.before = null;
@@ -1008,6 +1112,19 @@
     setTimeout(function () { if (resignArmed) { resignArmed = false; btn.textContent = 'Resign'; } }, 4000);
   });
   $('coach-on').addEventListener('click', gateAction);
+  $('voice-on').addEventListener('change', function () {
+    voice.on = this.checked;
+    saveVoice();
+    if (voice.on) say('Coach voice on.'); else stopSpeaking();
+  });
+  $('voice-name').addEventListener('change', function () { voice.name = this.value; saveVoice(); say('This is the voice for your coach.', true); });
+  $('voice-rate').addEventListener('change', function () { voice.rate = Number(this.value) || 1; saveVoice(); say('This is the speed for your coach.', true); });
+  $('coach-log').addEventListener('click', function (e) {
+    var b = e.target.closest('.speak-btn');
+    if (!b) return;
+    for (var i = 0; i < notes.length; i++) if (String(notes[i].ply) === b.dataset.ply) { say(noteSpeech(notes[i]), true); return; }
+  });
+  $('review-speak').addEventListener('click', function () { say('Game review. ' + $('review-text').textContent, true); });
   $('review-btn').addEventListener('click', askReview);
   $('copy-pgn').addEventListener('click', function () {
     var btn = this, text = pgnText(), out = $('pgn-out');
@@ -1029,6 +1146,7 @@
     Engine.init();
     buildBoard();
     initCoach();
+    initVoice();
     if (!isOver() && game.turn() !== state.side) engineTurn(); else { startPlayerTurn(); render(); }
   }
 
