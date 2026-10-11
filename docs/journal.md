@@ -88,6 +88,23 @@ landed late on 2026-10-09, the last on 2026-10-10.
   (main for releases, develop for integration, feature branches off develop).
 - Next: merge `feature/coach-voice` into `develop` and release as 1.1.0.
 
+## 2026-10-11 — release 1.1.0 and marking online voices
+
+- Merged `feature/coach-voice` into `develop` at `4db490a`.
+- Released 1.1.0: `main` at `64256f1`, tagged `v1.1.0`. The published artifact
+  was republished from that source.
+- D007 was corrected before it was committed: a comparison with the code found
+  the voice list also includes the browser's network voices, not only voices
+  installed on the machine.
+- On `feature/voice-labels`, committed at `9d6e092`: the voice list now groups
+  voices under "On this computer" and "Online: text is sent to the provider",
+  and a warning line appears when an online voice is selected.
+- The player's chosen voice turned out to be a local one.
+- Gremlin: a comment on 4. e3 called a pawn on c5 "free" when it was defended
+  twice. The shortened system prompt no longer forbids that word, and the
+  missed-capture fact does not say when the opponent can take back.
+- Next: fix that on its own branch.
+
 <!-- Entry shape:
 
 ## YYYY-MM-DD — short summary of the session
