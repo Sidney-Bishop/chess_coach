@@ -32,7 +32,7 @@
   };
   var LABEL = { blunder: 'Blunder', mistake: 'Mistake', good: 'Well played' };
   var MARK = { blunder: '??', mistake: '?', good: '!' };
-  var BUILD = '2026-10-10.5';   // shown under the scoresheet, so a stale cached script is visible
+  var BUILD = '2026-10-11.1';   // shown under the scoresheet, so a stale cached script is visible
   var STORE_KEY = 'chess-coach-v1';
 
   var $ = function (id) { return document.getElementById(id); };
@@ -756,14 +756,29 @@
     $('voice-on').checked = voice.on;
     var sel = $('voice-name'), cur = chosenVoice();
     sel.textContent = '';
-    voice.list.forEach(function (v) {
-      var o = document.createElement('option');
-      o.value = v.name;
-      o.textContent = v.name + ' (' + v.lang + ')';
-      sel.appendChild(o);
+    // Two groups, so it is plain which voices speak on this machine and which send the text away.
+    var groups = [
+      { label: 'On this computer', local: true },
+      { label: 'Online: text is sent to the provider', local: false }
+    ];
+    groups.forEach(function (g) {
+      var members = voice.list.filter(function (v) { return !!v.localService === g.local; });
+      if (!members.length) return;
+      var og = document.createElement('optgroup');
+      og.label = g.label;
+      members.forEach(function (v) {
+        var o = document.createElement('option');
+        o.value = v.name;
+        o.textContent = v.name + ' (' + v.lang + ')' + (g.local ? '' : ' · online');
+        og.appendChild(o);
+      });
+      sel.appendChild(og);
     });
     if (cur) sel.value = cur.name;
     sel.disabled = !voice.list.length;
+    var hint = $('voice-hint');
+    hint.hidden = !(cur && !cur.localService);
+    hint.textContent = hint.hidden ? '' : cur.name + ' is an online voice: the text of each comment is sent to its provider to be spoken. Voices under "On this computer" keep it on your machine.';
     $('voice-rate').value = String(voice.rate);
   }
   function initVoice() {
@@ -1117,7 +1132,7 @@
     saveVoice();
     if (voice.on) say('Coach voice on.'); else stopSpeaking();
   });
-  $('voice-name').addEventListener('change', function () { voice.name = this.value; saveVoice(); say('This is the voice for your coach.', true); });
+  $('voice-name').addEventListener('change', function () { voice.name = this.value; saveVoice(); renderVoice(); say('This is the voice for your coach.', true); });
   $('voice-rate').addEventListener('change', function () { voice.rate = Number(this.value) || 1; saveVoice(); say('This is the speed for your coach.', true); });
   $('coach-log').addEventListener('click', function (e) {
     var b = e.target.closest('.speak-btn');
