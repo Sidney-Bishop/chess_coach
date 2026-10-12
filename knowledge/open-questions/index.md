@@ -19,12 +19,11 @@ Each bullet below ends in its status: **Open**, **Partial**, or
 * [Q001 — How strong should the level-1 opponent be for a 500-600 rated player?](/open-questions/Q001-level-one-opponent-strength.md) - Level 1's strength against the target player has never been measured; early games suggest it is too weak or too erratic. **Open.**
 * [Q002 — Are the flag thresholds right?](/open-questions/Q002-flag-thresholds.md) - The mistake, blunder and still-ahead thresholds are first guesses, to be settled from flag counts across several games. **Open.**
 * [Q003 — How should opening principles be coached?](/open-questions/Q003-coaching-opening-principles.md) - D004 puts opening principles in scope, but they rarely cross a flag threshold; detect them in code or drop them. **Open.**
-* [Q004 — How do we know a comment says nothing false?](/open-questions/Q004-checking-comments-for-false-statements.md) - The model's wording is not checked; an automated check on the reply, or a decision that hand review is enough. **Open.**
 * [Q005 — Should the coach remember patterns across games?](/open-questions/Q005-patterns-across-games.md) - D004 calls for recurring patterns, but nothing is kept between games; whether and where to keep a record. **Open.**
 
 # Partially answered
 
-_None._
+* [Q004 — How do we know a comment says nothing false?](/open-questions/Q004-checking-comments-for-false-statements.md) - A code check now discards unsupported claims that a piece on a named square is free; other false statements, and reviews, are still unchecked. **Partial.**
 
 # Closed
 

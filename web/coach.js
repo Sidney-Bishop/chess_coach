@@ -32,7 +32,7 @@
   };
   var LABEL = { blunder: 'Blunder', mistake: 'Mistake', good: 'Well played' };
   var MARK = { blunder: '??', mistake: '?', good: '!' };
-  var BUILD = '2026-10-11.2';   // shown under the scoresheet, so a stale cached script is visible
+  var BUILD = '2026-10-12.2';   // shown under the scoresheet, so a stale cached script is visible
   var STORE_KEY = 'chess-coach-v1';
 
   var $ = function (id) { return document.getElementById(id); };
@@ -544,8 +544,12 @@
 
   // A comment may call something free, hanging or undefended only when the facts sent to the model
   // say so. The model added "a free pawn" to a capture the opponent could take back (Q004).
+  // Only a sentence that also names a square, on its own ("on c5") or inside a move ("Nxe4"), counts as a
+  // claim about the position: general advice such as "keep scanning for loose pieces" is allowed.
   function unsupportedClaim(comment, factsText) {
-    var claims = /\b(free|for nothing|hanging|hung|unprotected|undefended|unguarded|loose)\b/i.test(comment);
+    var words = /\b(free|for nothing|hanging|hung|unprotected|undefended|unguarded|loose)\b/i;
+    var sentences = String(comment).match(/[^.!?]+[.!?]*/g) || [String(comment)];
+    var claims = sentences.some(function (sen) { return words.test(sen) && /(?:^|[^A-Za-z]|[KQRBNx])[a-h][1-8](?![0-9])/.test(sen); });
     var allowed = /for free|cannot take back|could not take back|not defended|where it could be taken/i.test(factsText);
     return claims && !allowed;
   }
