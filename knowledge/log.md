@@ -94,3 +94,26 @@ gets the one-line record of the concept that now carries it.
   [D007](/decisions/D007-coach-comments-spoken-with-browser-speech-synthesis.md)
   that the list does not mark local and network voices is now addressed in
   the code; D007 is left unedited, because decisions are not edited in place.
+
+## 2026-10-12
+
+* **Update**: [Architecture](/architecture.md) describes the changes to the
+  judging flow in builds `2026-10-11.2` to `2026-10-12.2`: the net value of
+  the engine's preferred capture, the theme order with a missed capture netting 2 or more
+  points ahead of lesser reasons, the exchange wording for a lesser capture
+  the opponent can take back, and the capture detail on the preferred-move
+  line. The answer section gains the claim check (`unsupportedClaim`), which
+  counts a forbidden word only in a sentence that names a square, on its own
+  or inside move notation, and the prompt rule it backs. The cited build
+  moves to `2026-10-12.2`, and
+  [Q004](/open-questions/Q004-checking-comments-for-false-statements.md) is
+  added to its links. `generated` moved to 2026-10-12 and `stale_after` to
+  2027-01-10.
+* **Partial**: [Q004 — how do we know a comment says nothing false?](/open-questions/Q004-checking-comments-for-false-statements.md)
+  marked **Partial**, `closed_by` the code check in build `2026-10-12.2`.
+  Answered: unsupported claims, in a sentence naming a square, that a piece
+  is free are discarded. Still open: the check reads the facts as a whole, a
+  false claim naming no square is not caught, the 4. e3 case is untested,
+  other false statements and reviews are unchecked. Moved to
+  "Partially answered" in the [open-questions index](/open-questions/); the
+  root [index](/index.md) line updated.

@@ -32,7 +32,7 @@
   };
   var LABEL = { blunder: 'Blunder', mistake: 'Mistake', good: 'Well played' };
   var MARK = { blunder: '??', mistake: '?', good: '!' };
-  var BUILD = '2026-10-11.1';   // shown under the scoresheet, so a stale cached script is visible
+  var BUILD = '2026-10-12.2';   // shown under the scoresheet, so a stale cached script is visible
   var STORE_KEY = 'chess-coach-v1';
 
   var $ = function (id) { return document.getElementById(id); };
@@ -430,6 +430,9 @@
     var trade = !!(d.move.captured && replyCap && replyCap.to === d.move.to && Math.abs(netLoss(replyCap)) < 2);
     if (replyCap && replyCap.captured !== 'p' && hung.indexOf(replyCap) === -1 && VAL[replyCap.captured] > VAL[replyCap.piece] && netLoss(replyCap) >= 2) hung.push(replyCap);
     var bestCap = captureFacts(d.fenBefore).filter(function (c) { return c.uci === bestUci; })[0] || null;
+    // What the engine's preferred capture nets: the piece taken, less the capturing piece if it can be taken back.
+    var netBest = bestCap ? VAL[bestCap.captured] - (bestCap.back ? VAL[bestCap.piece] : 0) : 0;
+    var bigCap = !!bestCap && netBest >= 2;
     var hadMate = d.before.mate !== null && d.before.mate > 0 && label !== 'good';
     var allowsMate = d.after.mate !== null && d.after.mate > 0;
 
@@ -441,6 +444,7 @@
     else if (hadMate) theme = 'missed checkmate';
     else if (allowsMate) theme = 'allowed checkmate';
     else if (hung.length) theme = 'hung piece';
+    else if (bigCap) theme = 'missed capture';
     else if (slipped) theme = 'let a win slip';
     else if (threat && threat.loose) theme = 'missed threat';
     else if (bestCap) theme = 'missed capture';
@@ -485,15 +489,22 @@
         key = 'the player had a forced checkmate in ' + d.before.mate + ' starting with ' + facts.best + ' and missed it';
       } else if (allowsMate) {
         key = 'the move allows a forced checkmate in ' + d.after.mate + (replySan ? ', starting with ' + replySan : '');
-      } else if (slipped && !hung.length) {
+      } else if (slipped && !hung.length && !bigCap) {
         key = 'before the move the player was clearly winning. After it the engine rates the game as level, most likely a draw by repeated checks, starting with the opponent\'s check ' + replySan;
       } else if (hung.length) {
         key = hung.map(function (c) { return 'the opponent can reply ' + c.san + ', taking the player\'s ' + NAME[c.captured] + ' on ' + c.to + (c.back ? ' with a less valuable piece' : ' for free'); }).join('; ');
+      } else if (bigCap) {
+        key = 'the player missed a capture: ' + bestCap.san + ', where the ' + NAME[bestCap.piece] + ' takes a ' + NAME[bestCap.captured] + ' on ' + bestCap.to +
+          (bestCap.back ? '. The opponent can take back, so the player gives up the ' + NAME[bestCap.piece] + ' for the ' + NAME[bestCap.captured] + ', which wins material'
+                        : ' and the opponent cannot take back');
       } else if (threat && threat.loose) {
         key = 'the opponent can reply ' + threat.san + ', and that piece then attacks ' +
           threat.list.filter(function (t) { return t.indexOf('not defended') !== -1; }).join(' and ');
       } else if (bestCap) {
-        key = 'the player missed a capture';
+        key = bestCap.back
+          ? 'the engine preferred the capture ' + bestCap.san + ', where the ' + NAME[bestCap.piece] + ' takes a ' + NAME[bestCap.captured] + ' on ' + bestCap.to +
+            '. The opponent can take back, so it is an exchange and no material is won outright. The engine gives no further reason, so do not invent one'
+          : 'the player missed a capture: ' + bestCap.san + ' takes a ' + NAME[bestCap.captured] + ' on ' + bestCap.to + ' and the opponent cannot take back';
       } else if (trade) {
         key = 'the move was a roughly even trade: the player\'s ' + NAME[d.move.piece] + ' took a ' + NAME[d.move.captured] + ' on ' + d.move.to +
           ' and the opponent takes back with ' + replyCap.san + '. Nothing was hung. The engine gives no further reason, so do not invent one';
@@ -501,7 +512,8 @@
         key = 'the engine expects the opponent to reply ' + replySan + '; its expected line is ' + facts.replyLine + '. No piece is hung and no capture was missed. The engine gives no further reason, so do not invent one';
       }
       var bestText = label === 'good' ? '' : ' The engine preferred ' + facts.best +
-        (bestCap ? ', which captures a ' + NAME[bestCap.captured] + (bestCap.back ? '' : ' that the opponent could not take back') : '') + '.';
+        (bestCap ? ', which captures a ' + NAME[bestCap.captured] + (bestCap.back ? ' (the opponent can take back)' : ' that the opponent could not take back') : '') + '.';
+
       var u = [
         'Facts: The player has ' + (side === 'w' ? 'White' : 'Black') + '. Move ' + note.moveNo + ': ' + d.move.san +
           (d.move.captured ? ', capturing a ' + NAME[d.move.captured] : '') + '.',
@@ -510,9 +522,11 @@
         'Key fact: ' + key + '.' + bestText
       ];
       var myGen = gen;
-      explain('move', MOVE_SYSTEM, u.join('\n')).then(function (r) {
-        if (r.text) { note.text = r.text; note.by = r.by; }
-        else note.error = 'empty reply';
+      var userText = u.join('\n');
+      explain('move', MOVE_SYSTEM, userText).then(function (r) {
+        if (!r.text) note.error = 'empty reply';
+        else if (unsupportedClaim(r.text, userText)) note.error = 'its comment claimed something the engine\'s facts do not support';
+        else { note.text = r.text; note.by = r.by; }
       }, function (err) {
         note.error = (err && (err.code || err.message)) || 'unknown error';
         providerFailed(err);
@@ -528,6 +542,18 @@
     save();
   }
 
+  // A comment may call something free, hanging or undefended only when the facts sent to the model
+  // say so. The model added "a free pawn" to a capture the opponent could take back (Q004).
+  // Only a sentence that also names a square, on its own ("on c5") or inside a move ("Nxe4"), counts as a
+  // claim about the position: general advice such as "keep scanning for loose pieces" is allowed.
+  function unsupportedClaim(comment, factsText) {
+    var words = /\b(free|for nothing|hanging|hung|unprotected|undefended|unguarded|loose)\b/i;
+    var sentences = String(comment).match(/[^.!?]+[.!?]*/g) || [String(comment)];
+    var claims = sentences.some(function (sen) { return words.test(sen) && /(?:^|[^A-Za-z]|[KQRBNx])[a-h][1-8](?![0-9])/.test(sen); });
+    var allowed = /for free|cannot take back|could not take back|not defended|where it could be taken/i.test(factsText);
+    return claims && !allowed;
+  }
+
   /* ---------- coach: commentary providers (D006) ----------
      local-omlx   : the locally served page; a local model behind oMLX's OpenAI-compatible endpoint.
      cloud-claude : the published artifact only; Claude on the viewer's account.
@@ -540,6 +566,7 @@
     'Reply with exactly one line in this form and nothing after it:',
     'COMMENT: <at most two short sentences and at most 30 words, spoken to the player as "you": what went wrong or right, then one habit for next time>',
     'If the key fact gives no reason, say only what the engine preferred and what it expects in reply, then give a general habit. Do not explain why.',
+    'Never call a piece or pawn free, hanging, loose, unprotected or undefended unless the facts say it is not defended or that the opponent cannot take back.',
     'No evaluation numbers. No markdown.',
     '',
     'Two examples of the form.',
@@ -845,7 +872,9 @@
       if (!n.pending) {
         var by = n.by || (n.byClaude ? 'Claude (cloud)' : '');
         card.appendChild(el('p', 'note-by', by ? 'Written by ' + by
-          : 'Engine verdict only' + (n.error ? ' · the model did not answer (' + n.error + ')' : '')));
+          : 'Engine verdict only' + (!n.error ? '' : n.error.indexOf('its comment') === 0
+            ? ' · the model\'s comment was discarded: it claimed something the engine\'s facts do not support'
+            : ' · the model did not answer (' + n.error + ')')));
         if (voice.supported) {
           var sb = el('button', 'btn speak-btn', 'Speak');
           sb.type = 'button';
