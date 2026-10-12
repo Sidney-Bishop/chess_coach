@@ -33,7 +33,7 @@
   };
   var LABEL = { blunder: 'Blunder', mistake: 'Mistake', good: 'Well played' };
   var MARK = { blunder: '??', mistake: '?', good: '!' };
-  var BUILD = '2026-10-12.3';   // shown under the scoresheet, so a stale cached script is visible
+  var BUILD = '2026-10-12.4';   // shown under the scoresheet, so a stale cached script is visible
   var STORE_KEY = 'chess-coach-v1';
 
   var $ = function (id) { return document.getElementById(id); };
@@ -53,6 +53,11 @@
     synth: window.speechSynthesis || null,
     supported: !!window.speechSynthesis && typeof window.SpeechSynthesisUtterance === 'function',
     on: false, name: '', rate: 1, list: []
+  };
+  // Move sounds: short clicks made with Web Audio, so there are no sound files to ship.
+  var sound = {
+    Ctx: window.AudioContext || window.webkitAudioContext || null,
+    ctx: null, on: true
   };
   var coach = { kind: '', resolved: false, on: false, problem: '', detail: '', sample: null, perms: null };
 
@@ -966,6 +971,74 @@
     hint.textContent = hint.hidden ? '' : cur.name + ' is an online voice: the text of each comment is sent to its provider to be spoken. Voices under "On this computer" keep it on your machine.';
     $('voice-rate').value = String(voice.rate);
   }
+  /* ---------- move sounds ---------- */
+  function audioCtx() {
+    if (!sound.Ctx) return null;
+    try {
+      if (!sound.ctx) sound.ctx = new sound.Ctx();
+      if (sound.ctx.state === 'suspended' && sound.ctx.resume) sound.ctx.resume();
+    } catch (e) { sound.ctx = null; }
+    return sound.ctx;
+  }
+  // A burst of noise through a band-pass filter: the wooden "tock" of a piece set down.
+  function knock(ctx, at, freq, q, len, gain) {
+    var n = Math.floor(ctx.sampleRate * len), buf = ctx.createBuffer(1, n, ctx.sampleRate), d = buf.getChannelData(0);
+    for (var i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 3);
+    var src = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
+    src.buffer = buf;
+    f.type = 'bandpass'; f.frequency.value = freq; f.Q.value = q;
+    g.gain.setValueAtTime(gain, at);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + len);
+    src.connect(f); f.connect(g); g.connect(ctx.destination);
+    src.start(at); src.stop(at + len + 0.02);
+  }
+  function tone(ctx, at, freq, len, gain) {
+    var o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'sine'; o.frequency.setValueAtTime(freq, at);
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(gain, at + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + len);
+    o.connect(g); g.connect(ctx.destination);
+    o.start(at); o.stop(at + len + 0.02);
+  }
+  // Check outranks capture: a capture that gives check plays the check sound.
+  function soundKind(move) {
+    if (!move) return '';
+    if (/[+#]/.test(move.san || '')) return 'check';
+    if (move.captured || /[ce]/.test(move.flags || '')) return 'capture';
+    return 'move';
+  }
+  function playMoveSound(move) {
+    var kind = soundKind(move);
+    if (!sound.on || !kind) return '';
+    var ctx = audioCtx();
+    if (!ctx) return '';
+    try {
+      var t = ctx.currentTime + 0.01;
+      if (kind === 'capture') {
+        knock(ctx, t, 900, 2.5, 0.09, 0.9);
+        tone(ctx, t, 180, 0.08, 0.35);
+      } else {
+        knock(ctx, t, 1800, 4, 0.06, 0.7);
+        if (kind === 'check') {
+          tone(ctx, t + 0.07, 880, 0.12, 0.18);
+          tone(ctx, t + 0.17, 1175, 0.16, 0.18);
+        }
+      }
+    } catch (e) { return ''; }
+    sound.last = kind;   // read by the tests
+    return kind;
+  }
+  function saveSound() { try { localStorage.setItem(STORE_KEY + '-sound', JSON.stringify({ on: sound.on })); } catch (e) { /* optional */ } }
+  function initSound() {
+    try {
+      var saved = JSON.parse(localStorage.getItem(STORE_KEY + '-sound') || 'null');
+      if (saved && typeof saved.on === 'boolean') sound.on = saved.on;
+    } catch (e) { /* optional */ }
+    $('sound-row').hidden = !sound.Ctx;
+    $('sound-on').checked = sound.on;
+  }
+
   function initVoice() {
     if (!voice.supported) { renderVoice(); return; }
     try {
@@ -1144,6 +1217,7 @@
     var done = game.move(mv);
     clearSelection();
     if (!done) { render(); return; }
+    playMoveSound(done);
     var fenAfter = game.fen(), myGen = gen, ended = isOver();
     if (ended && game.in_checkmate()) { render(); return; }
     // A move that ends the game in a draw is judged as leaving a level position.
@@ -1200,7 +1274,8 @@
         if (uci && uci.length >= 4) {
           done = game.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci.length > 4 ? uci[4] : undefined });
         }
-        if (!done) { var r = randomMove(); if (r) game.move(r); }
+        if (!done) { var r = randomMove(); if (r) done = game.move(r); }
+        playMoveSound(done);
         state.thinking = false;
         startPlayerTurn();
         render();
@@ -1321,6 +1396,13 @@
   Array.prototype.forEach.call(document.querySelectorAll('input[name="prov-kind"]'), function (r) {
     r.addEventListener('change', function () { showFields(chosenKind()); $('prov-status').textContent = ''; });
   });
+  $('sound-on').addEventListener('change', function () {
+    sound.on = this.checked;
+    saveSound();
+    if (sound.on) playMoveSound({ san: 'e4', flags: 'b' });
+  });
+  // Browsers start audio only after a user gesture, so wake it on the first touch or click.
+  document.addEventListener('pointerdown', function () { if (sound.on) audioCtx(); }, { once: true });
   $('voice-on').addEventListener('change', function () {
     voice.on = this.checked;
     saveVoice();
@@ -1356,6 +1438,7 @@
     buildBoard();
     initCoach();
     initVoice();
+    initSound();
     if (!isOver() && game.turn() !== state.side) engineTurn(); else { startPlayerTurn(); render(); }
   }
 

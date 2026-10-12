@@ -173,6 +173,29 @@ landed late on 2026-10-09, the last on 2026-10-10.
   before going public; none were found.
 - Next: merge, release 1.3.1, then switch the repository to public on GitHub.
 
+## 2026-10-12 — release 1.3.1, the repository made public, and move sounds
+
+- Released 1.3.1: `main` at `76a02c8`, tagged `v1.3.1`.
+- Switched the GitHub repository to public; the player confirmed the change
+  worked. That completes what D010 decided.
+- On `feature/move-sounds`, build `2026-10-12.4`: every move, the player's and
+  the engine's, plays a short sound synthesised with Web Audio, with no sound
+  files. Three sounds: an ordinary move, a capture, and check (which wins
+  over capture). A "Move sounds" checkbox, on by default, is saved under
+  `chess-coach-v1-sound`.
+- Tested in headless Chromium with a recording stand-in for `AudioContext`:
+  Qxf7+ played the check sound, the engine's Kxf7 the capture sound, quiet
+  moves the move sound; unticked, moves were silent and the setting survived
+  a reload. With no `AudioContext` the checkbox is hidden; with the real one
+  there were no errors.
+- Browsers refuse to start audio before a user gesture, so the audio context
+  is woken on the first click on the page.
+- The player played a game with build `2026-10-12.4` and confirmed the sounds
+  work.
+- No decision recorded for the sounds: nothing goes over the network, so the
+  architecture page covers them.
+- Version set to 1.4.0. Next: merge into `develop` and release 1.4.0.
+
 <!-- Entry shape:
 
 ## YYYY-MM-DD — short summary of the session
