@@ -1,6 +1,7 @@
 /* Chess Coach: board, engine opponent, and move-by-move coaching.
    D005: served locally from web/; the published artifact is an optional cloud build.
-   D006: commentary comes from a local model by default, cloud Claude only in the artifact.
+   D006 / D009: commentary comes from a local model by default; the player may choose an OpenAI-compatible
+   service or Anthropic with their own key; cloud Claude only in the artifact.
    D002: Stockfish judges every move; Claude only explains the engine's output.
    D004: the coach stays quiet unless a move crosses the thresholds in COACH. */
 (function () {
@@ -32,7 +33,7 @@
   };
   var LABEL = { blunder: 'Blunder', mistake: 'Mistake', good: 'Well played' };
   var MARK = { blunder: '??', mistake: '?', good: '!' };
-  var BUILD = '2026-10-12.2';   // shown under the scoresheet, so a stale cached script is visible
+  var BUILD = '2026-10-12.3';   // shown under the scoresheet, so a stale cached script is visible
   var STORE_KEY = 'chess-coach-v1';
 
   var $ = function (id) { return document.getElementById(id); };
@@ -53,7 +54,7 @@
     supported: !!window.speechSynthesis && typeof window.SpeechSynthesisUtterance === 'function',
     on: false, name: '', rate: 1, list: []
   };
-  var coach = { kind: '', resolved: false, on: false, problem: '', sample: null, perms: null };
+  var coach = { kind: '', resolved: false, on: false, problem: '', detail: '', sample: null, perms: null };
 
   /* ---------- engine ---------- */
   var Engine = {
@@ -554,10 +555,6 @@
     return claims && !allowed;
   }
 
-  /* ---------- coach: commentary providers (D006) ----------
-     local-omlx   : the locally served page; a local model behind oMLX's OpenAI-compatible endpoint.
-     cloud-claude : the published artifact only; Claude on the viewer's account.
-     The provider is fixed by where the page runs. There is no fallback from one to the other. */
   // The answer must come on a line starting with a marker, so it can be picked out of any reasoning the
   // model writes first. A reply with no marker is discarded, never shown.
   var MOVE_SYSTEM = [
@@ -585,6 +582,11 @@
   ].join('\n');
   var LIMITS = { move: { marker: 'COMMENT:', sentences: 2, words: 40 }, review: { marker: 'REVIEW:', sentences: 3, words: 75 } };
 
+  /* ---------- coach: model settings for the locally served page (D006, superseded in part by D009) ----------
+     local     : a local model behind oMLX (or any server on this machine with the same interface)
+     openai    : any service that speaks OpenAI's chat-completions format (OpenAI, Ollama, LM Studio, ...)
+     anthropic : Anthropic's Messages API, called directly from the browser with the player's own key
+     The player chooses one. A failure never switches to another. Keys stay in this browser's storage. */
   var CFG = (window.CHESS_COACH_CONFIG && window.CHESS_COACH_CONFIG.local) || {};
   var LOCAL = {
     endpoint: String(CFG.endpoint || 'http://127.0.0.1:8000').replace(/\/+$/, ''),
@@ -596,6 +598,32 @@
     maxTokensReview: CFG.maxTokensReview || 3000,
     timeoutMs: CFG.timeoutMs || 180000
   };
+  var PROVIDERS = {
+    local: { label: 'Local model (oMLX)', short: 'Local model' },
+    openai: { label: 'OpenAI-compatible service', short: 'OpenAI-compatible' },
+    anthropic: { label: 'Anthropic', short: 'Anthropic' }
+  };
+  var PROV_KEY = STORE_KEY + '-provider';
+  var prov = {
+    kind: 'local',
+    local: { endpoint: LOCAL.endpoint, moveModel: LOCAL.moveModel, reviewModel: LOCAL.reviewModel },
+    openai: { baseUrl: 'https://api.openai.com', key: '', moveModel: '', reviewModel: '' },
+    anthropic: { key: '', moveModel: 'claude-haiku-4-5-20251001', reviewModel: 'claude-sonnet-5-5' }
+  };
+  function loadProv() {
+    try {
+      var s = JSON.parse(localStorage.getItem(PROV_KEY) || 'null');
+      if (!s || !PROVIDERS[s.kind]) return;
+      prov.kind = s.kind;
+      Object.keys(PROVIDERS).forEach(function (k) {
+        if (!s[k] || typeof s[k] !== 'object') return;
+        Object.keys(prov[k]).forEach(function (f) { if (typeof s[k][f] === 'string') prov[k][f] = s[k][f]; });
+      });
+    } catch (e) { /* storage is optional */ }
+  }
+  function saveProv() { try { localStorage.setItem(PROV_KEY, JSON.stringify(prov)); } catch (e) { /* optional */ } }
+  function provModel(kind) { var p = prov[prov.kind]; return kind === 'review' ? (p.reviewModel || p.moveModel) : p.moveModel; }
+  function provLabel() { return PROVIDERS[prov.kind].short; }
 
   function canExplain() { return coach.resolved && coach.on; }
 
@@ -620,73 +648,158 @@
     return out.join(' ');
   }
 
-  function localFetch(path, body, timeoutMs) {
+  // Resolves the parsed JSON body; rejects {code, status?, detail?}.
+  function fetchJSON(url, headers, body, timeoutMs) {
     var ctl = new AbortController();
     var timer = setTimeout(function () { ctl.abort(); }, timeoutMs);
-    var opt = { method: body ? 'POST' : 'GET', headers: { 'Authorization': 'Bearer ' + LOCAL.token }, signal: ctl.signal };
+    var opt = { method: body ? 'POST' : 'GET', headers: headers || {}, signal: ctl.signal };
     if (body) { opt.headers['Content-Type'] = 'application/json'; opt.body = JSON.stringify(body); }
-    return fetch(LOCAL.endpoint + path, opt).then(function (res) {
+    return fetch(url, opt).then(function (res) {
       clearTimeout(timer);
-      if (!res.ok) throw { code: 'http ' + res.status };
-      return res.json();
+      return res.text().then(function (t) {
+        var j = null;
+        try { j = JSON.parse(t); } catch (e) { /* not JSON */ }
+        if (!res.ok) {
+          var msg = j && j.error && (j.error.message || j.error.type);
+          throw { code: 'http ' + res.status, status: res.status, detail: String(msg || t || '').slice(0, 200) };
+        }
+        return j;
+      });
     }, function (err) {
       clearTimeout(timer);
       throw { code: err && err.name === 'AbortError' ? 'timed out' : 'unreachable' };
     });
   }
+  function apiBase(url) { return String(url || '').trim().replace(/\/+$/, '').replace(/\/v1$/, ''); }
 
-  // One call for both providers. Resolves {text, by}; rejects {code}.
-  function explain(kind, system, user, onText) {
-    if (coach.kind === 'local-omlx') {
-      var model = kind === 'review' ? LOCAL.reviewModel : LOCAL.moveModel;
-      // One retry when the reply holds no answer line: the model sometimes reasons past its token limit.
-      var attempt = function (left) {
-        return localFetch('/v1/chat/completions', {
-          model: model, temperature: LOCAL.temperature,
-          max_tokens: kind === 'review' ? LOCAL.maxTokensReview : LOCAL.maxTokensMove,
-          messages: [{ role: 'system', content: system }, { role: 'user', content: user }]
-        }, LOCAL.timeoutMs).then(function (j) {
-          var msg = j && j.choices && j.choices[0] && j.choices[0].message;
-          var text = extractAnswer(msg && msg.content, kind);
-          if (text) return { text: text, by: model + ' (local)' };
-          if (left > 0) return attempt(left - 1);
-          throw { code: 'no answer in the reply' };
-        });
-      };
-      return attempt(1);
-    }
-    return Promise.resolve().then(function () {
-      var opt = { modelTier: 'default' };
-      if (onText) opt.onText = function (u) { var part = extractAnswer(u.text, kind); if (part) onText(part); };
-      return coach.sample(system + '\n\n' + user, opt);
-    }).then(function (res) {
-      var text = extractAnswer(res && res.text, kind);
-      if (!text) throw { code: 'no answer in the reply' };
-      return { text: text, by: 'Claude (cloud)' };
-    });
+  // OpenAI's chat-completions format: oMLX, OpenAI, Ollama, LM Studio and others.
+  function chatCompletions(base, token, model, system, user, maxTokens) {
+    var url = apiBase(base) + '/v1/chat/completions';
+    var send = function (body, adjusted) {
+      var headers = token ? { 'Authorization': 'Bearer ' + token } : {};
+      return fetchJSON(url, headers, body, LOCAL.timeoutMs).then(function (j) {
+        var msg = j && j.choices && j.choices[0] && j.choices[0].message;
+        return msg && msg.content;
+      }, function (err) {
+        // Some newer OpenAI models refuse max_tokens or a set temperature: retry once with what they accept.
+        if (!adjusted && err.status === 400 && /max_tokens|temperature/i.test(err.detail || '')) {
+          var b2 = { model: body.model, messages: body.messages, max_completion_tokens: maxTokens };
+          if (!/temperature/i.test(err.detail)) b2.temperature = body.temperature;
+          return send(b2, true);
+        }
+        throw err;
+      });
+    };
+    return send({
+      model: model, temperature: LOCAL.temperature, max_tokens: maxTokens,
+      messages: [{ role: 'system', content: system }, { role: 'user', content: user }]
+    }, false);
   }
+
+  // Anthropic's Messages API, called from the browser with the player's own key.
+  function anthropicMessages(key, model, system, user, maxTokens) {
+    var send = function (body, adjusted) {
+      return fetchJSON('https://api.anthropic.com/v1/messages', {
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      }, body, LOCAL.timeoutMs).then(function (j) {
+        return ((j && j.content) || []).filter(function (b) { return b.type === 'text'; }).map(function (b) { return b.text; }).join('\n');
+      }, function (err) {
+        if (!adjusted && err.status === 400 && /temperature/i.test(err.detail || '')) {
+          var b2 = { model: body.model, max_tokens: body.max_tokens, system: body.system, messages: body.messages };
+          return send(b2, true);
+        }
+        throw err;
+      });
+    };
+    return send({ model: model, max_tokens: maxTokens, temperature: LOCAL.temperature, system: system, messages: [{ role: 'user', content: user }] }, false);
+  }
+
+  // One call for every provider. Resolves {text, by}; rejects {code}.
+  function explain(kind, system, user, onText) {
+    if (coach.kind === 'cloud-claude') {
+      return Promise.resolve().then(function () {
+        var opt = { modelTier: 'default' };
+        if (onText) opt.onText = function (u) { var part = extractAnswer(u.text, kind); if (part) onText(part); };
+        return coach.sample(system + '\n\n' + user, opt);
+      }).then(function (res) {
+        var text = extractAnswer(res && res.text, kind);
+        if (!text) throw { code: 'no answer in the reply' };
+        return { text: text, by: 'Claude (cloud)' };
+      });
+    }
+    var model = provModel(kind), label = provLabel();
+    var maxT = kind === 'review' ? LOCAL.maxTokensReview : LOCAL.maxTokensMove;
+    var call = function () {
+      if (prov.kind === 'anthropic') return anthropicMessages(prov.anthropic.key, model, system, user, maxT);
+      if (prov.kind === 'openai') return chatCompletions(prov.openai.baseUrl, prov.openai.key, model, system, user, maxT);
+      return chatCompletions(prov.local.endpoint, LOCAL.token, model, system, user, maxT);
+    };
+    // One retry when the reply holds no answer line: a local model sometimes reasons past its token limit.
+    var attempt = function (left) {
+      return call().then(function (content) {
+        var text = extractAnswer(content, kind);
+        if (text) return { text: text, by: model + ' (' + label + ')' };
+        if (left > 0) return attempt(left - 1);
+        throw { code: 'no answer in the reply' };
+      });
+    };
+    return attempt(1);
+  }
+
+  function errText(err) { return err ? (err.code || 'error') + (err.detail ? ': ' + err.detail : '') : 'unknown error'; }
 
   function providerFailed(err) {
     var code = err && err.code;
-    if (coach.kind === 'local-omlx' && code === 'unreachable') { coach.on = false; coach.problem = 'unreachable'; }
-    if (coach.kind === 'cloud-claude' && code === 'not_granted') { coach.on = false; coach.problem = 'denied'; }
+    if (coach.kind === 'cloud-claude') {
+      if (code === 'not_granted') { coach.on = false; coach.problem = 'denied'; }
+      return;
+    }
+    if (code === 'unreachable' || (err && (err.status === 401 || err.status === 403 || err.status === 404))) {
+      coach.on = false;
+      coach.problem = code === 'unreachable' ? 'unreachable' : 'setup';
+      coach.detail = errText(err);
+    }
   }
 
-  function probeLocal() {
+  // Checks the chosen provider is set up. Only the local model is probed; a service is tried on first use.
+  function connectProvider() {
     coach.resolved = false;
     coach.problem = '';
+    coach.detail = '';
     renderCoach();
-    return localFetch('/v1/models', null, 4000).then(function () {
+    var p = prov[prov.kind], check;
+    if (prov.kind === 'local') {
+      check = fetchJSON(apiBase(p.endpoint) + '/v1/models', LOCAL.token ? { 'Authorization': 'Bearer ' + LOCAL.token } : {}, null, 4000);
+    } else if (!p.key && prov.kind === 'anthropic') {
+      check = Promise.reject({ code: 'no API key entered' });
+    } else if (!p.moveModel) {
+      check = Promise.reject({ code: 'no model name entered' });
+    } else if (prov.kind === 'openai' && !apiBase(p.baseUrl)) {
+      check = Promise.reject({ code: 'no address entered' });
+    } else {
+      check = Promise.resolve();
+    }
+    return check.then(function () {
       coach.on = true;
-    }, function () {
+    }, function (err) {
       coach.on = false;
-      coach.problem = 'unreachable';
-    }).then(function () { coach.resolved = true; renderCoach(); });
+      coach.problem = err && (err.code === 'unreachable' || err.code === 'timed out') ? 'unreachable' : 'setup';
+      coach.detail = errText(err);
+    }).then(function () { coach.resolved = true; renderCoach(); renderProvider(); });
   }
 
   function initCoach() {
     var c = window.claude;
-    if (!c || !c.use) { coach.kind = 'local-omlx'; probeLocal(); return; }
+    if (!c || !c.use) {
+      coach.kind = 'page';
+      loadProv();
+      $('prov-box').hidden = false;
+      renderProvider();
+      connectProvider();
+      return;
+    }
     coach.kind = 'cloud-claude';
     Promise.all([c.use('sample'), c.use('permissions')]).then(function (r) {
       coach.sample = r[0]; coach.perms = r[1];
@@ -705,10 +818,10 @@
     });
   }
 
-  // The one button in the coach panel: "Retry" for the local model, "Turn on coaching" for cloud Claude.
+  // The one button in the coach panel: "Retry" on the local page, "Turn on coaching" for cloud Claude.
   function gateAction() {
     var btn = $('coach-on');
-    if (coach.kind === 'local-omlx') { probeLocal(); return; }
+    if (coach.kind !== 'cloud-claude') { connectProvider(); return; }
     btn.disabled = true;
     var ask = coach.perms ? coach.perms.request(['sample']) : Promise.resolve({ sample: 'granted' });
     ask.then(function (res) {
@@ -718,6 +831,51 @@
       else coach.on = true;
       try { localStorage.setItem(STORE_KEY + '-coach', coach.on ? 'on' : 'off'); } catch (e) { /* optional */ }
     }, function () {}).then(function () { btn.disabled = false; renderCoach(); });
+  }
+
+  /* ---------- coach: model settings panel ---------- */
+  var PROV_FIELDS = {
+    local: { endpoint: 'pl-endpoint', moveModel: 'pl-move', reviewModel: 'pl-review' },
+    openai: { baseUrl: 'po-base', key: 'po-key', moveModel: 'po-move', reviewModel: 'po-review' },
+    anthropic: { key: 'pa-key', moveModel: 'pa-move', reviewModel: 'pa-review' }
+  };
+  function chosenKind() {
+    var r = document.querySelector('input[name="prov-kind"]:checked');
+    return r && PROVIDERS[r.value] ? r.value : prov.kind;
+  }
+  function showFields(kind) {
+    Array.prototype.forEach.call(document.querySelectorAll('.prov-fields'), function (d) { d.hidden = d.dataset.kind !== kind; });
+  }
+  function renderProvider() {
+    if (coach.kind === 'cloud-claude') return;
+    Object.keys(PROV_FIELDS).forEach(function (k) {
+      Object.keys(PROV_FIELDS[k]).forEach(function (f) { $(PROV_FIELDS[k][f]).value = prov[k][f]; });
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('input[name="prov-kind"]'), function (r) { r.checked = r.value === prov.kind; });
+    showFields(prov.kind);
+    $('prov-summary').textContent = 'Coach model: ' + PROVIDERS[prov.kind].label + (prov[prov.kind].moveModel ? ' · ' + prov[prov.kind].moveModel : '');
+  }
+  function saveProvider() {
+    var kind = chosenKind();
+    Object.keys(PROV_FIELDS).forEach(function (k) {
+      Object.keys(PROV_FIELDS[k]).forEach(function (f) { prov[k][f] = $(PROV_FIELDS[k][f]).value.trim(); });
+    });
+    prov.kind = kind;
+    saveProv();
+    var status = $('prov-status'), btn = $('prov-save');
+    btn.disabled = true;
+    status.textContent = 'Testing…';
+    connectProvider().then(function () {
+      if (!coach.on) { status.textContent = 'Not working: ' + coach.detail; return null; }
+      // A one-line test, so a wrong key or model name shows now rather than on the first flagged move.
+      return explain('move', MOVE_SYSTEM, 'Facts: The player has White. Move 1: e4.\nVerdict: good move.\nAfter it the engine rates the position as roughly level.\nKey fact: this is a test of the connection.')
+        .then(function (r) { status.textContent = 'Working: ' + r.by + ' replied.'; }, function (err) {
+          providerFailed(err);
+          if (err && err.code === 'no answer in the reply') status.textContent = 'Connected, but the model gave no answer line. Try another model.';
+          else { coach.on = false; coach.problem = 'setup'; coach.detail = errText(err); status.textContent = 'Not working: ' + errText(err); }
+          renderCoach();
+        });
+    }).then(function () { btn.disabled = false; });
   }
 
   /* ---------- coach: voice ---------- */
@@ -826,16 +984,19 @@
   function renderCoach() {
     var gate = $('coach-gate'), gateText = $('coach-gate-text'), gateBtn = $('coach-on');
     var log = $('coach-log'), stateEl = $('coach-state');
-    var local = coach.kind === 'local-omlx';
+    var local = coach.kind !== 'cloud-claude';
     var showGate = false;
 
     if (!coach.resolved) {
-      stateEl.textContent = local ? 'Looking for the local model…' : 'Checking…';
+      stateEl.textContent = local ? 'Connecting to ' + provLabel() + '…' : 'Checking…';
     } else if (coach.on) {
-      stateEl.textContent = local ? 'Local model · ' + LOCAL.moveModel : 'Cloud · Claude';
+      stateEl.textContent = local ? provLabel() + ' · ' + prov[prov.kind].moveModel : 'Cloud · Claude';
     } else if (local) {
-      stateEl.textContent = 'Local model not reachable · engine verdicts only';
-      gateText.textContent = 'The local model at ' + LOCAL.endpoint + ' did not answer, so comments show the engine\'s verdict only. Start oMLX, then retry.';
+      stateEl.textContent = provLabel() + ' not ready · engine verdicts only';
+      gateText.textContent = (prov.kind === 'local' && coach.problem === 'unreachable'
+        ? 'The local model at ' + prov.local.endpoint + ' did not answer. Start oMLX, then retry, or choose another coach model under "Coach model".'
+        : 'The coach model is not working (' + (coach.detail || 'not set up') + '). Check it under "Coach model", then retry.') +
+        ' Until then, comments show the engine\'s verdict only.';
       gateBtn.textContent = 'Retry';
       showGate = true;
     } else if (!coach.problem) {
@@ -935,7 +1096,7 @@
       u.push('- Move ' + n.moveNo + ', ' + n.san + ': ' + LABEL[n.label] + (n.theme ? ' (' + n.theme + ')' : '') + '. ' + n.text);
     });
     
-    review = { text: 'The coach is writing…' + (coach.kind === 'local-omlx' ? ' The review model takes about half a minute.' : ''), busy: true, by: '', error: '' };
+    review = { text: 'The coach is writing…' + (coach.kind !== 'cloud-claude' && prov.kind === 'local' ? ' The review model takes about half a minute.' : ''), busy: true, by: '', error: '' };
     renderCoach();
     var myGen = gen;
     explain('review', REVIEW_SYSTEM, u.join('\n'), function (t) {
@@ -1156,6 +1317,10 @@
     setTimeout(function () { if (resignArmed) { resignArmed = false; btn.textContent = 'Resign'; } }, 4000);
   });
   $('coach-on').addEventListener('click', gateAction);
+  $('prov-save').addEventListener('click', saveProvider);
+  Array.prototype.forEach.call(document.querySelectorAll('input[name="prov-kind"]'), function (r) {
+    r.addEventListener('change', function () { showFields(chosenKind()); $('prov-status').textContent = ''; });
+  });
   $('voice-on').addEventListener('change', function () {
     voice.on = this.checked;
     saveVoice();
