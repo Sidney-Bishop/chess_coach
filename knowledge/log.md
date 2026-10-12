@@ -143,3 +143,11 @@ gets the one-line record of the concept that now carries it.
   [D007](/decisions/D007-coach-comments-spoken-with-browser-speech-synthesis.md)
   lists as untried. D007 is left unedited, because decisions are not edited
   in place; the confirmation is in `docs/journal.md`.
+* **Creation**: [D010 — the repository is public and licensed GPL-3.0-or-later](/decisions/D010-repository-public-gpl-3-or-later.md)
+  (Active). Supersedes nothing: it relates to
+  [D008](/decisions/D008-branching-main-releases-develop-integration.md),
+  answering D008's reason to revisit if the repository is made public, but
+  D008's privacy was a Context fact, not one of its decision points, so D008
+  is unchanged and fully in force. Linked from the
+  [decisions index](/decisions/) and added to its Standalone list; the root
+  [index](/index.md) range updated to D001–D010.
