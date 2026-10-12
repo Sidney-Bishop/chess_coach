@@ -88,6 +88,57 @@ landed late on 2026-10-09, the last on 2026-10-10.
   (main for releases, develop for integration, feature branches off develop).
 - Next: merge `feature/coach-voice` into `develop` and release as 1.1.0.
 
+## 2026-10-11 — release 1.1.0 and marking online voices
+
+- Merged `feature/coach-voice` into `develop` at `4db490a`.
+- Released 1.1.0: `main` at `64256f1`, tagged `v1.1.0`. The published artifact
+  was republished from that source.
+- D007 was corrected before it was committed: a comparison with the code found
+  the voice list also includes the browser's network voices, not only voices
+  installed on the machine.
+- On `feature/voice-labels`, committed at `9d6e092`: the voice list now groups
+  voices under "On this computer" and "Online: text is sent to the provider",
+  and a warning line appears when an online voice is selected.
+- The player's chosen voice turned out to be a local one.
+- Gremlin: a comment on 4. e3 called a pawn on c5 "free" when it was defended
+  twice. The shortened system prompt no longer forbids that word, and the
+  missed-capture fact does not say when the opponent can take back.
+- Next: fix that on its own branch.
+
+## 2026-10-12 — the coach stops calling defended pieces free
+
+- Merged `feature/voice-labels` into `develop` at `f97a10e`.
+- On `feature/capture-claims`, committed at `6d7371e`, build `2026-10-11.2`:
+  - When the engine's preferred move is a capture the opponent can take back,
+    the fact sent to the model now says it is an exchange and nothing is won
+    outright. This applies when the capture nets less than 2 points; a capture
+    netting 2 or more is still described as winning material.
+  - The system prompt forbids calling anything free, hanging, loose,
+    unprotected or undefended unless the facts say so.
+  - A code check discards a comment that uses one of those words when the
+    facts sent to the model support none of them. The note then says the
+    comment was discarded.
+  - A missed capture that nets 2 or more points ranks ahead of lesser reasons.
+- Tested with stand-in replies, including a missed queen capture answered "a
+  free queen", which was discarded.
+- The exact 4. e3 position from the earlier gremlin did not reproduce as a
+  flagged move in testing, so that case is untested.
+- In a real game on 2026-10-12 the visible comments were consistent with the
+  engine's facts, including a "free knight" that really was free.
+- Known limit: the check looks at the facts as a whole, so a wrong "free" can
+  pass when another piece in the same position really is undefended.
+- Narrowed after review, build `2026-10-12.1` (not yet committed): the check
+  now counts one of those words as a claim only in a sentence that also names
+  a square. The first version would have discarded true comments whose closing
+  habit used words like "loose" or "unprotected" as general advice, such as
+  "keep scanning for loose pieces". A new limit follows: a false claim written
+  without naming a square is not caught.
+- Widened, build `2026-10-12.2` (not yet committed): the square pattern now
+  also counts a square inside move notation ("Nxe4", "Qh5", "dxc5"), not only
+  one standing on its own ("on c5"). The `2026-10-12.1` pattern missed those,
+  so "Nxe4 wins a free pawn" would have passed.
+- Next: merge into `develop` and release.
+
 <!-- Entry shape:
 
 ## YYYY-MM-DD — short summary of the session

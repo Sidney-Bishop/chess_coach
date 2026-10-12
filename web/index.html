@@ -135,6 +135,7 @@ select:focus-visible, .btn:focus-visible { outline: 3px solid var(--accent); out
 .voice-toggle input { width: 16px; height: 16px; accent-color: var(--accent); }
 .voice-row select { min-height: 30px; padding: 3px 6px; font-size: 0.8rem; min-width: 0; flex: 1 1 90px; }
 .voice-row #voice-rate { flex: 0 0 auto; }
+.voice-hint { flex: 1 1 100%; margin: 0; font-size: 0.78rem; color: var(--warn); }
 .speak-btn { align-self: flex-start; min-height: 26px; padding: 2px 10px; font-size: 0.76rem; }
 .coach-gate { padding: 12px; display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
 .coach-gate p, .coach-empty { margin: 0; font-size: 0.88rem; color: var(--muted); }
@@ -194,6 +195,7 @@ select:focus-visible, .btn:focus-visible { outline: 3px solid var(--accent); out
             <option value="1">Normal</option>
             <option value="1.2">Fast</option>
           </select>
+          <p class="voice-hint" id="voice-hint" hidden></p>
         </div>
         <div class="coach-gate" id="coach-gate" hidden>
           <p id="coach-gate-text">The engine checks every move you make. When one is worth talking about, Claude explains it in plain words. Each explanation uses your Claude account.</p>
@@ -247,8 +249,8 @@ select:focus-visible, .btn:focus-visible { outline: 3px solid var(--accent); out
   </div>
 </main>
 
-<script src="vendor/chess.js?v=2026-10-10.5"></script>
-<script src="config.js?v=2026-10-10.5"></script>
-<script src="coach.js?v=2026-10-10.5"></script>
+<script src="vendor/chess.js?v=2026-10-12.2"></script>
+<script src="config.js?v=2026-10-12.2"></script>
+<script src="coach.js?v=2026-10-12.2"></script>
 </body>
 </html>

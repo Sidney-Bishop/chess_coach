@@ -3,8 +3,8 @@ type: Reference
 title: "chess_coach — Architecture"
 description: How chess_coach is built right now — the files under web/, how the page is served, the engine queue, the judging flow, the two commentary providers, the spoken coach voice, persistence, and how the artifact form is derived.
 tags: [reference, architecture, web, engine, commentary]
-generated: { by: human:jason-roche, at: 2026-10-11T00:00:00Z }
-stale_after: 2027-01-09T00:00:00Z
+generated: { by: human:jason-roche, at: 2026-10-12T00:00:00Z }
+stale_after: 2027-01-10T00:00:00Z
 ---
 
 How chess_coach is built **right now** — the moving parts, how they fit, the
@@ -16,7 +16,7 @@ This is a **state** concept: overwrite it as the architecture changes. The
 the *story* of how it got there lives in `docs/journal.md`. This concept just
 says what *is*.
 
-All of this describes the code as of 2026-10-11, build `2026-10-10.5`.
+All of this describes the code as of 2026-10-12, build `2026-10-12.2`.
 
 # Components
 
@@ -37,7 +37,7 @@ code: the engine, the judging and the calls to the model all run in the page.
   input, the engine wrapper, the engine opponent, the judging of the player's
   moves, the two commentary providers, the coach panel, the coach voice, the
   game review, persistence and event wiring. Its `BUILD` constant
-  (`2026-10-10.5`) is shown
+  (`2026-10-12.2`) is shown
   in the engine line under the scoresheet.
 - `web/vendor/` — third-party files, not edited by hand. `chess.js` 0.10.3
   (rules, legal moves, SAN, PGN) and `stockfish.asm.js` (Stockfish 10, npm
@@ -119,18 +119,34 @@ The engine judges every player move; the model only explains
    the player's non-pawn pieces are hung, counting what the player's move just
    took so an even trade is not called a hung piece; what the opponent's
    replying piece attacks and whether each target is defended; whether the
-   best move was a capture; missed or allowed forced mate; a big lead dropped
-   to level after a checking reply; and the draw reason. From these it picks
-   one **theme** (missed checkmate, allowed checkmate, hung piece, let a win
-   slip, missed threat, missed capture, trade, stalemate, and so on) and one
-   **key fact**.
+   best move was a capture, whether the opponent could take back, and what
+   it nets in points (the piece taken, less the capturing piece if it can be
+   taken back); missed or allowed forced mate; a big lead dropped to level
+   after a checking reply; and the draw reason. From these it picks one
+   **theme** and one **key fact**. The theme is the first that applies, in
+   this order: good capture or good reply (for a well-played move);
+   stalemate or drawn a won game; missed checkmate; allowed checkmate; hung
+   piece; missed capture netting 2 or more points; let a win slip; missed
+   threat; any other missed capture; trade; other. The key fact follows the
+   same order. For the engine's preferred capture:
+   - netting 2 or more, it says the player missed the capture and either that
+     the opponent cannot take back, or that the opponent can take back, so
+     the player gives up one piece for the other, which wins material;
+   - netting less, if the opponent can take back, it says the capture is an
+     exchange, no material is won outright, and the engine gives no further
+     reason; if the opponent cannot, it says the player missed a capture the
+     opponent cannot take back.
 6. **The note.** The note is added at once with an engine-only text written in
    code, the label and theme, and a line with the engine's preferred move and
    the evaluation before and after. The scoresheet marks the move `??`, `?` or
    `!`. If coaching is on, the model is sent only the side, the move, the
-   verdict, the standing in words, the key fact and the preferred move, and
-   its answer replaces the text. Each note says what wrote it, or "Engine
-   verdict only" with the error.
+   verdict, the standing in words, the key fact and the preferred move —
+   with, if that move is a capture, what it takes and whether the opponent
+   can take back. Its answer replaces the text unless the claim check (see
+   [below](#answer-marker-and-length-cap)) discards it. Each note says what
+   wrote it, or "Engine verdict only" with the error, or with "the model's
+   comment was discarded: it claimed something the engine's facts do not
+   support".
 
 At game end the review panel shows counts computed in code (blunders, mistakes,
 punished mistakes, the move from which the player was clearly winning — 700 or
@@ -181,6 +197,29 @@ On `local-omlx` a reply with no answer is retried once; if the retry has none
 either, the call fails with "no answer in the reply" and the note keeps its
 engine-only text.
 
+**Claims of a free piece.** `MOVE_SYSTEM` tells the model never to call a
+piece or pawn free, hanging, loose, unprotected or undefended unless the facts
+say it is not defended or that the opponent cannot take back. In `assess`,
+each move comment then goes through `unsupportedClaim`, which splits the
+comment into sentences. A sentence counts as a claim only if it contains one
+of the words *free*, *for nothing*, *hanging*, *hung*, *unprotected*,
+*undefended*, *unguarded* or *loose* **and** names a square — a lower-case
+file `a`–`h` followed by a rank `1`–`8` and no further digit, coming at the
+start of the sentence, after a character that is not a letter, or after a
+piece letter (`K`, `Q`, `R`, `B`, `N`) or `x`. So a square counts whether it
+stands on its own ("on c5") or sits inside move notation ("Nxe4", "Qh5",
+"dxc5"). General advice with no square, such as "keep
+scanning for loose pieces", is not a claim. The comment is discarded if any
+sentence is a claim and the whole text sent to the model contains none of
+*for free*, *cannot take back*, *could not take back*, *not defended* or
+*where it could be taken*. A discarded comment is not retried and does not
+turn coaching off; the note keeps its engine-only text, which is what is
+spoken, and says the comment was discarded. Limits: the check reads the facts
+as a whole, not per piece, so a wrong "free" passes when the facts call some
+other piece free or undefended; and a false claim that names no square ("you
+left your knight hanging") is not caught. Game reviews are not checked
+([Q004](/open-questions/Q004-checking-comments-for-false-statements.md)).
+
 # The coach voice
 
 Comments and the game review can be read aloud with the browser's own speech
@@ -191,7 +230,9 @@ offers.
 
 - **Controls.** A row under the coach heading in `index.html` (`voice-row`):
   a "Speak comments" checkbox (`voice-on`), a voice list (`voice-name`) and a
-  speed list (`voice-rate`: Slow 0.85, Normal 1, Fast 1.2). Each finished note
+  speed list (`voice-rate`: Slow 0.85, Normal 1, Fast 1.2), with a warning
+  line (`voice-hint`) below them, hidden unless an online voice is chosen.
+  Each finished note
   card has a Speak button (`speak-btn`), and the review has its own
   (`review-speak`).
 - **Storage.** `{ on, name, rate }` is saved under `chess-coach-v1-voice` on
@@ -221,6 +262,14 @@ offers.
   Chrome fills the list a moment after load. The voice used is the saved one,
   else the browser's default, else one matching the browser language, else the
   first.
+- **Local and online voices.** `renderVoice` splits the list into two
+  `<optgroup>`s by the browser's `localService` flag: "On this computer" and
+  "Online: text is sent to the provider". An empty group is left out. Each
+  online voice's option also ends "· online". When the voice in use is an
+  online one, the warning line shows "<name> is an online voice: the text of
+  each comment is sent to its provider to be spoken. Voices under "On this
+  computer" keep it on your machine." Changing the voice re-renders the row,
+  so the warning follows the selection.
 - **No speech support.** If `speechSynthesis` or `SpeechSynthesisUtterance` is
   missing, the voice row stays hidden, no Speak buttons are drawn, and `say`
   does nothing.
@@ -285,5 +334,7 @@ settings in `config.js` go unused
   providers and the no-fallback rule.
 - [D007](/decisions/D007-coach-comments-spoken-with-browser-speech-synthesis.md) —
   why comments are spoken with the browser's speech synthesis.
+- [Q004](/open-questions/Q004-checking-comments-for-false-statements.md) —
+  checking comments for false statements; the claim check partly answers it.
 - [Decisions](/decisions/) — the full log.
 - [Pitfalls](/pitfalls.md) — the constraints that fail quietly.
