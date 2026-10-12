@@ -1,4 +1,17 @@
-# Chess Coach
+<p align="center">
+  <img src="web/logo.svg" alt="Chess Coach logo: a chess knight with a speech bubble" width="128" height="128">
+</p>
+
+<h1 align="center">Chess Coach</h1>
+
+<p align="center">
+  <a href="https://github.com/Sidney-Bishop/chess_coach/tags"><img alt="Latest release" src="https://img.shields.io/github/v/tag/Sidney-Bishop/chess_coach?sort=semver&label=release&color=1f5f4a"></a>
+  <a href="LICENSE"><img alt="Licence: GPL-3.0-or-later" src="https://img.shields.io/badge/licence-GPL--3.0--or--later-1f5f4a"></a>
+  <a href="https://github.com/Sidney-Bishop/chess_coach/commits/main"><img alt="Last commit" src="https://img.shields.io/github/last-commit/Sidney-Bishop/chess_coach/main?color=1f5f4a"></a>
+  <img alt="Runs in the browser" src="https://img.shields.io/badge/runs%20in-the%20browser-e3b23c">
+  <img alt="Engine: Stockfish 10" src="https://img.shields.io/badge/engine-Stockfish%2010-5c8266">
+  <img alt="Rules: chess.js 0.10.3" src="https://img.shields.io/badge/rules-chess.js%200.10.3-5c8266">
+</p>
 
 A chess tutor that runs in your browser. You play against the Stockfish engine,
 and when one of your moves is worth talking about, a coach explains it in plain
@@ -16,6 +29,8 @@ words and can read it aloud. It is pitched at beginners rated about 500-600.
 - **A short review at the end** sums up what came up in the game.
 - **Optional voice.** Tick "Speak comments" and the browser reads each comment
   aloud, with chess notation turned into words ("knight takes E 4, check").
+- **Move sounds.** Each move plays a short click, a heavier one for a capture
+  and a chime for check. Untick "Move sounds" to turn them off.
 
 ## Run it
 
