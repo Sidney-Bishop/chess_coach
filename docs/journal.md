@@ -196,6 +196,21 @@ landed late on 2026-10-09, the last on 2026-10-10.
   architecture page covers them.
 - Version set to 1.4.0. Next: merge into `develop` and release 1.4.0.
 
+## 2026-10-12 — release 1.4.0, a logo, and README badges
+
+- Released 1.4.0: `main` at `cbc2a72`, tagged `v1.4.0`.
+- Drew a logo, `web/logo.svg`: a cream knight with a gold speech bubble on a
+  rounded square in the board's dark green, using the page's own colours. The
+  knight is drawn from scratch, not taken from a chess font or brand. It reads
+  as a knight down to 32 px; at 16 px the bubble is only a gold dot.
+- On `feature/readme-logo`: the README opens with the logo, centred, and a row
+  of shields.io badges: latest release (from the git tags, since there are no
+  GitHub Releases), licence, last commit, runs in the browser, Stockfish 10,
+  chess.js 0.10.3. The badges use the logo's colours.
+- The README's feature list gained the move sounds, missed in 1.4.0.
+- Version set to 1.4.1. Next: check the README on GitHub, then merge and
+  release 1.4.1.
+
 <!-- Entry shape:
 
 ## YYYY-MM-DD — short summary of the session
