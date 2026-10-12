@@ -34,8 +34,11 @@ words and can read it aloud. It is pitched at beginners rated about 500-600.
 
 ## Run it
 
-You need Python 3 (only to serve the files) and a current browser such as
-Chrome.
+You need **Python 3** (only to serve the files) and a current browser such as
+**Chrome**. There is nothing to install and no build step: the chess engine
+runs inside the page.
+
+**1. Get the code and start the page server.** In a terminal:
 
 ```bash
 git clone https://github.com/Sidney-Bishop/chess_coach.git
@@ -43,23 +46,93 @@ cd chess_coach/web
 python3 -m http.server 8080 --bind 127.0.0.1
 ```
 
-Then open <http://localhost:8080/>. The page must be served like this: opened
-as a `file://` page, the browser will not start the chess engine.
+On Windows, type `python` instead of `python3` if `python3` is not found.
+
+**2. Open <http://localhost:8080/>** in the browser. The page must be opened
+through this address: if you double-click `index.html` instead, the browser
+will not start the chess engine.
+
+**3. Play.** Leave the terminal open while you play. To stop, press
+**Ctrl+C** in that terminal. Next time, only the last two commands are needed
+(`cd chess_coach/web` and `python3 -m http.server ...`), run from the folder
+you cloned into.
+
+Without any further setup you can already play the engine at five levels,
+with move sounds, take-backs and the scoresheet. The engine still flags your
+mistakes and blunders, but with a short verdict instead of a written
+explanation. For explanations, set up a coach model (next section).
+
+To update to a newer version later: in the `chess_coach` folder run
+`git pull`, then reload the page with **Cmd+Shift+R** (Mac) or
+**Ctrl+Shift+R** (Windows and Linux) so the browser fetches the new files.
 
 ## Choose who writes the comments
 
-Open **Coach model** in the Coach panel and pick one:
+Open **Coach model** in the Coach panel, pick one of the three options, fill
+in its fields and press **Save and test**. The line next to the button says
+whether the page could reach the model.
 
-- **Local model (oMLX)**, the default: a model server on your own machine at
-  `http://127.0.0.1:8000`, speaking OpenAI's chat-completions format. Free.
-- **OpenAI-compatible service**: OpenAI with your own API key, or a local
-  Ollama or LM Studio server at its own address (no key needed).
-- **Anthropic**, with your own API key.
+**Local model (oMLX)**, the default. Free, but only on an Apple Silicon Mac
+(M1 or later). [oMLX](https://github.com/jundot/omlx) serves MLX models on your
+Mac at `http://127.0.0.1:8000`. The page asks it for the two models named in
+`web/config.js`; if you have different models, type their names into the
+panel's two model fields instead (the names oMLX lists for them). Not on a Mac
+with oMLX? Use one of the other two options.
 
-Press **Save and test** to check the setup. API keys are kept only in your
-browser's storage, never in the project's files. Paid services charge your
-account for each comment. With no model set up at all you can still play: each
-flagged move shows the engine's verdict in plain text.
+**OpenAI-compatible service.** Three common ways to use it:
+
+| You use | Address | API key | Model name |
+|---|---|---|---|
+| Ollama (free, runs on your computer: Mac, Windows or Linux) | `http://localhost:11434` | leave empty | a name from `ollama list`, for example `llama3.1` |
+| LM Studio (free, runs on your computer) | `http://localhost:1234` | leave empty | the model identifier LM Studio shows for the loaded model |
+| OpenAI (paid) | `https://api.openai.com` | your OpenAI key | a model name from your OpenAI account's model list |
+
+For Ollama, install it from <https://ollama.com>, then download a model once
+with `ollama pull llama3.1` (or any other model). For LM Studio, load a model,
+start its local server, and switch on **Enable CORS** in the server settings,
+otherwise the browser blocks the page from reaching it.
+
+**Anthropic** (paid). Paste your Anthropic API key and a model name, as
+listed in Anthropic's documentation.
+
+For both of these options the review model field is optional: if it is empty,
+the move model writes the end-of-game review too.
+
+API keys are kept only in this browser's storage, never in the project's
+files; anyone who uses the same browser profile can read them. Paid services
+charge your account for each comment.
+
+The OpenAI and Anthropic options have so far been tested only against stand-in
+servers, not the real services. If one of them fails for you, please open an
+issue on GitHub with the message shown next to **Save and test**.
+
+**Spoken comments** need no setup: tick **Speak comments** and the browser
+reads each comment aloud with a voice installed on your computer. Voices in
+the "Online" group send the comment text to the voice's provider; the ones
+under "On this computer" do not.
+
+## If something goes wrong
+
+- **"Address already in use" when starting the server.** Something else is
+  using port 8080. Use another port, for example
+  `python3 -m http.server 8081 --bind 127.0.0.1`, and open
+  <http://localhost:8081/>.
+- **The board appears but the engine never moves**, or the line under the
+  scoresheet does not say "Engine: Stockfish 10, running in this page": the
+  page was probably opened as a file. Open it through the
+  `http://localhost:...` address instead.
+- **The page looks out of date after `git pull`.** Reload with Cmd+Shift+R
+  (Ctrl+Shift+R on Windows and Linux). The line under the scoresheet shows
+  the build number, so you can check that the new version loaded.
+- **Save and test cannot reach the model.** Check that the model server is
+  running and the address is exactly as in the table above. For LM Studio,
+  check that Enable CORS is on. For Ollama, if it is running but still cannot
+  be reached, it may be refusing requests from the page; see "allowing
+  additional web origins" in Ollama's FAQ (<https://docs.ollama.com/faq>).
+  For a paid service, check the key and the model name.
+- **No sound.** Click once anywhere on the page first: browsers play sound
+  only after you have clicked. Check that **Move sounds** is ticked and that
+  your computer is not muted.
 
 ## Documentation map
 

@@ -1,6 +1,6 @@
 [project]
 name = "chess-coach"
-version = "1.4.1"
+version = "1.4.2"
 description = "A chess tutor that runs in the browser: the engine judges every move and a local language model explains it."
 license = "GPL-3.0-or-later"
 requires-python = ">=3.14"
