@@ -160,6 +160,19 @@ landed late on 2026-10-09, the last on 2026-10-10.
   superseding D006 in part.
 - Next: merge into `develop` and release.
 
+## 2026-10-12 — release 1.3.0 and preparing the public release
+
+- Released 1.3.0: `main` at `0b37017`, tagged `v1.3.0`. The published artifact
+  was republished from it.
+- On `feature/public-release`:
+  - `LICENSE` added (GPL-3.0);
+  - `pyproject.toml` given a licence, `GPL-3.0-or-later`;
+  - `README.md` rewritten for visitors;
+  - recorded D010 (the repository is public and licensed GPL-3.0-or-later).
+- The whole git history was searched for API keys, private keys and tokens
+  before going public; none were found.
+- Next: merge, release 1.3.1, then switch the repository to public on GitHub.
+
 <!-- Entry shape:
 
 ## YYYY-MM-DD — short summary of the session

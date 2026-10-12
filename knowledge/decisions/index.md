@@ -25,6 +25,7 @@ Each bullet below ends in the decision's current status.
 * [D007 — The coach's comments are spoken with the browser's built-in speech synthesis](/decisions/D007-coach-comments-spoken-with-browser-speech-synthesis.md) - Comments and the review are read aloud by the browser's own speech synthesis, off until the player opts in, with chess notation turned into words in code. **Active.**
 * [D008 — Branching and release model: main for releases, develop for integration, feature branches off develop](/decisions/D008-branching-main-releases-develop-integration.md) - `main` receives only tagged releases, `develop` integrates, each feature is built on `feature/<name>` off `develop`, and the artifact is republished only at a release. **Active.**
 * [D009 — On the locally served page the player chooses the coach model: local, an OpenAI-compatible service, or Anthropic, with their own key](/decisions/D009-player-chooses-coach-model-on-local-page.md) - A "Coach model" panel on the local page offers the local model (the default), any OpenAI-compatible service, or Anthropic, with the player's own key kept in the browser. Supersedes D006 in part. **Active.**
+* [D010 — The repository is public and licensed GPL-3.0-or-later](/decisions/D010-repository-public-gpl-3-or-later.md) - The GitHub repository is made public so friends can clone and play, and the project is licensed GPL-3.0-or-later to match the vendored Stockfish. Relates to D008 without superseding it. **Active.**
 
 # Supersession chains
 
@@ -32,7 +33,11 @@ Each bullet below ends in the decision's current status.
 * **[D006](/decisions/D006-commentary-provider-local-omlx-default.md) → [D009](/decisions/D009-player-chooses-coach-model-on-local-page.md) (scoped: which providers the locally served page may use)** — the commentary provider. D006 tied the local page to the local model, so nothing on it could reach a paid provider; D009 adds a "Coach model" panel letting the player choose an OpenAI-compatible service or Anthropic with their own key, because someone without a local model server got only the engine's verdicts. Partial supersession: D006 still governs everything outside that scope — the local model as the default, no automatic fallback, cloud Claude for the published artifact, and the oMLX settings in `web/config.js`.
 * **Standalone (supersede nothing, superseded by nothing):** [D001](/decisions/D001-scaffolded-with-project-bootstrap.md), [D002](/decisions/D002-engine-judges-llm-explains.md), [D004](/decisions/D004-coaching-pitched-at-500-600-player.md),
   [D007](/decisions/D007-coach-comments-spoken-with-browser-speech-synthesis.md),
-  [D008](/decisions/D008-branching-main-releases-develop-integration.md).
+  [D008](/decisions/D008-branching-main-releases-develop-integration.md),
+  [D010](/decisions/D010-repository-public-gpl-3-or-later.md). D010 answers
+  D008's "if the repository is to be made public" reason to revisit, but
+  displaces none of D008's decision points, so it relates to D008 rather than
+  superseding it.
 
 _As chains form, record them here: `D002 → D005 → D009`, with a line saying what
 each step changed and whether any earlier decision stays live in a narrower
