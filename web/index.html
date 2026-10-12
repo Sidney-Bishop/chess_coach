@@ -136,6 +136,21 @@ select:focus-visible, .btn:focus-visible { outline: 3px solid var(--accent); out
 .voice-row select { min-height: 30px; padding: 3px 6px; font-size: 0.8rem; min-width: 0; flex: 1 1 90px; }
 .voice-row #voice-rate { flex: 0 0 auto; }
 .voice-hint { flex: 1 1 100%; margin: 0; font-size: 0.78rem; color: var(--warn); }
+.prov { border-bottom: 1px solid var(--line); font-size: 0.85rem; }
+.prov summary { padding: 8px 12px; cursor: pointer; font-weight: 500; color: var(--muted); overflow-wrap: anywhere; }
+.prov summary:focus-visible { outline: 3px solid var(--accent); outline-offset: -3px; }
+.prov-body { padding: 4px 12px 12px; display: flex; flex-direction: column; gap: 10px; }
+.prov-kinds { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.prov-kinds legend { padding: 0; margin-bottom: 4px; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; }
+.prov-kinds label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.prov-kinds input { accent-color: var(--accent); }
+.prov-fields { display: flex; flex-direction: column; gap: 4px; }
+.prov-fields label { font-size: 0.78rem; color: var(--muted); }
+.prov-fields input { font: inherit; font-size: 0.85rem; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 6px 8px; min-width: 0; width: 100%; }
+.prov-fields input:focus-visible { outline: 3px solid var(--accent); outline-offset: 1px; }
+.prov-note { margin: 0; font-size: 0.78rem; color: var(--muted); }
+.prov-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.prov-status { font-size: 0.8rem; color: var(--muted); overflow-wrap: anywhere; min-width: 0; }
 .speak-btn { align-self: flex-start; min-height: 26px; padding: 2px 10px; font-size: 0.76rem; }
 .coach-gate { padding: 12px; display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
 .coach-gate p, .coach-empty { margin: 0; font-size: 0.88rem; color: var(--muted); }
@@ -197,6 +212,41 @@ select:focus-visible, .btn:focus-visible { outline: 3px solid var(--accent); out
           </select>
           <p class="voice-hint" id="voice-hint" hidden></p>
         </div>
+        <details class="prov" id="prov-box" hidden>
+          <summary id="prov-summary">Coach model</summary>
+          <div class="prov-body">
+            <fieldset class="prov-kinds">
+              <legend>Who writes the comments</legend>
+              <label><input type="radio" name="prov-kind" id="pk-local" value="local"> Local model (oMLX)</label>
+              <label><input type="radio" name="prov-kind" id="pk-openai" value="openai"> OpenAI-compatible service</label>
+              <label><input type="radio" name="prov-kind" id="pk-anthropic" value="anthropic"> Anthropic</label>
+            </fieldset>
+            <div class="prov-fields" data-kind="local">
+              <label for="pl-endpoint">Address</label><input id="pl-endpoint" type="url" autocomplete="off" spellcheck="false">
+              <label for="pl-move">Model for move comments</label><input id="pl-move" autocomplete="off" spellcheck="false">
+              <label for="pl-review">Model for the game review</label><input id="pl-review" autocomplete="off" spellcheck="false">
+              <p class="prov-note">Free: runs on this computer.</p>
+            </div>
+            <div class="prov-fields" data-kind="openai" hidden>
+              <label for="po-base">Address</label><input id="po-base" type="url" autocomplete="off" spellcheck="false" placeholder="https://api.openai.com">
+              <label for="po-key">API key</label><input id="po-key" type="password" autocomplete="off" spellcheck="false" placeholder="Leave empty for a local Ollama or LM Studio server">
+              <label for="po-move">Model for move comments</label><input id="po-move" autocomplete="off" spellcheck="false" placeholder="the exact model name your service lists">
+              <label for="po-review">Model for the game review</label><input id="po-review" autocomplete="off" spellcheck="false" placeholder="optional; the move model is used if empty">
+              <p class="prov-note">Works with OpenAI, or with a local Ollama or LM Studio server at its own address. OpenAI charges your account for each comment.</p>
+            </div>
+            <div class="prov-fields" data-kind="anthropic" hidden>
+              <label for="pa-key">API key</label><input id="pa-key" type="password" autocomplete="off" spellcheck="false">
+              <label for="pa-move">Model for move comments</label><input id="pa-move" autocomplete="off" spellcheck="false">
+              <label for="pa-review">Model for the game review</label><input id="pa-review" autocomplete="off" spellcheck="false">
+              <p class="prov-note">Anthropic charges your account for each comment.</p>
+            </div>
+            <p class="prov-note">A key is kept only in this browser, never in the project's files. Anyone who uses this browser profile can read it.</p>
+            <div class="prov-actions">
+              <button class="btn primary" id="prov-save" type="button">Save and test</button>
+              <span class="prov-status" id="prov-status" role="status"></span>
+            </div>
+          </div>
+        </details>
         <div class="coach-gate" id="coach-gate" hidden>
           <p id="coach-gate-text">The engine checks every move you make. When one is worth talking about, Claude explains it in plain words. Each explanation uses your Claude account.</p>
           <button class="btn primary" id="coach-on" type="button">Turn on coaching</button>
@@ -249,8 +299,8 @@ select:focus-visible, .btn:focus-visible { outline: 3px solid var(--accent); out
   </div>
 </main>
 
-<script src="vendor/chess.js?v=2026-10-12.2"></script>
-<script src="config.js?v=2026-10-12.2"></script>
-<script src="coach.js?v=2026-10-12.2"></script>
+<script src="vendor/chess.js?v=2026-10-12.3"></script>
+<script src="config.js?v=2026-10-12.3"></script>
+<script src="coach.js?v=2026-10-12.3"></script>
 </body>
 </html>

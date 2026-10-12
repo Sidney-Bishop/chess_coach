@@ -1,5 +1,7 @@
-/* Chess Coach configuration (D006).
-   Settings for the local commentary provider, used when the page is served from web/.
+/* Chess Coach configuration (D006, D009).
+   Defaults for the local model, used when the page is served from web/. The player can change the
+   coach model in the page under "Coach model"; those choices, and any API key, are kept in the
+   browser, never in this file. Temperature, token limits and timeout here apply to every provider.
    The published artifact also loads this file but leaves these settings unused: it uses cloud Claude.
    The token is the loopback literal for a server bound to 127.0.0.1, not a secret. */
 window.CHESS_COACH_CONFIG = {
