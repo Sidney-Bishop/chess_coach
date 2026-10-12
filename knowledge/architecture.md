@@ -1,7 +1,7 @@
 ---
 type: Reference
 title: "chess_coach — Architecture"
-description: How chess_coach is built right now — the files under web/, how the page is served, the engine queue, the judging flow, the commentary providers and the Coach model panel, the spoken coach voice, persistence, and how the artifact form is derived.
+description: How chess_coach is built right now — the files under web/, how the page is served, the engine queue, the judging flow, the commentary providers and the Coach model panel, the spoken coach voice, the move sounds, persistence, and how the artifact form is derived.
 tags: [reference, architecture, web, engine, commentary]
 generated: { by: human:jason-roche, at: 2026-10-12T00:00:00Z }
 stale_after: 2027-01-10T00:00:00Z
@@ -16,7 +16,7 @@ This is a **state** concept: overwrite it as the architecture changes. The
 the *story* of how it got there lives in `docs/journal.md`. This concept just
 says what *is*.
 
-All of this describes the code as of 2026-10-12, build `2026-10-12.3`.
+All of this describes the code as of 2026-10-12, build `2026-10-12.4`.
 
 # Components
 
@@ -38,8 +38,8 @@ code: the engine, the judging and the calls to the model all run in the page.
 - `web/coach.js` — all the application logic, in one IIFE: the board and move
   input, the engine wrapper, the engine opponent, the judging of the player's
   moves, the commentary providers and the Coach model panel, the coach panel, the coach voice, the
-  game review, persistence and event wiring. Its `BUILD` constant
-  (`2026-10-12.3`) is shown
+  move sounds, the game review, persistence and event wiring. Its `BUILD` constant
+  (`2026-10-12.4`) is shown
   in the engine line under the scoresheet.
 - `web/vendor/` — third-party files, not edited by hand. `chess.js` 0.10.3
   (rules, legal moves, SAN, PGN) and `stockfish.asm.js` (Stockfish 10, npm
@@ -333,6 +333,38 @@ offers.
   missing, the voice row stays hidden, no Speak buttons are drawn, and `say`
   does nothing.
 
+# Move sounds
+
+Every move on the board, the player's and the engine's, plays a short sound
+made with Web Audio (`AudioContext`, or `webkitAudioContext`). The sounds are
+synthesised in code, so there are no sound files and nothing goes over the
+network.
+
+- **Three sounds.** `soundKind` picks one from the move chess.js returns:
+  - **check** if the SAN contains `+` or `#`: the move sound followed by two
+    sine tones, 880 Hz then 1175 Hz. Check outranks capture, so a capture
+    that gives check plays this one;
+  - **capture** if the move has `captured` or the flags `c` or `e`: noise
+    through a 900 Hz band-pass with a 180 Hz sine thump, about 90 ms;
+  - **move** otherwise: noise through an 1800 Hz band-pass, about 60 ms.
+  Both building blocks, `knock` (filtered noise) and `tone` (a sine), fade
+  out on an exponential envelope.
+- **Where it is triggered.** `playMoveSound` runs right after a successful
+  `game.move` in `playerMove`, and in `engineTurn` after the engine's move or
+  the random fallback move. Nothing plays when a game is restored or a move
+  is taken back.
+- **Unlocking audio.** Browsers start audio only after a user gesture, so the
+  `AudioContext` is created or resumed by `audioCtx` on the first
+  `pointerdown` on the page, and again before each sound.
+- **Control.** A "Move sounds" checkbox (`sound-on`) in `sound-row`, under the
+  game buttons. It is on by default. Ticking it plays one move sound as a
+  sample. If the browser has no `AudioContext`, the row stays hidden and no
+  sounds play.
+- **Storage.** `{ on }` is saved under `chess-coach-v1-sound` when the box
+  changes and read back by `initSound` at start.
+- **Errors.** Any failure inside the audio calls is caught and the move goes
+  ahead silently.
+
 # Persistence
 
 The game is saved to `localStorage` under `chess-coach-v1` on every render and
@@ -341,7 +373,8 @@ the notes (any pending one saved as not pending), the evaluation track, and
 the review only if a model wrote it. On load it is restored with each field
 checked, and anything inconsistent with the restored game dropped. The cloud
 opt-in is a separate key, `chess-coach-v1-coach`; the voice settings
-another, `chess-coach-v1-voice`; and the coach model settings, keys included,
+another, `chess-coach-v1-voice`; the move-sound setting another,
+`chess-coach-v1-sound`; and the coach model settings, keys included,
 another, `chess-coach-v1-provider`. Every storage access is in
 `try/catch`; the page works without storage. When `window.claude.hot` exists,
 the page also hands it a snapshot and starts from its data.

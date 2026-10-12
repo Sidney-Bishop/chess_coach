@@ -132,6 +132,7 @@ select:focus-visible, .btn:focus-visible { outline: 3px solid var(--accent); out
 .coach-head span { font-size: 0.78rem; color: var(--muted); }
 .voice-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--line); font-size: 0.85rem; }
 .voice-toggle { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; cursor: pointer; white-space: nowrap; }
+.sound-row { margin: 10px 0 0; }
 .voice-toggle input { width: 16px; height: 16px; accent-color: var(--accent); }
 .voice-row select { min-height: 30px; padding: 3px 6px; font-size: 0.8rem; min-width: 0; flex: 1 1 90px; }
 .voice-row #voice-rate { flex: 0 0 auto; }
@@ -285,6 +286,7 @@ select:focus-visible, .btn:focus-visible { outline: 3px solid var(--accent); out
           <button class="btn" id="flip" type="button">Flip board</button>
           <button class="btn" id="resign" type="button">Resign</button>
         </div>
+        <p class="sound-row" id="sound-row" hidden><label class="voice-toggle" for="sound-on"><input type="checkbox" id="sound-on" checked> Move sounds</label></p>
         <p class="hint" id="side-hint" hidden>Your colour changes when you start a new game.</p>
       </div>
 
@@ -299,8 +301,8 @@ select:focus-visible, .btn:focus-visible { outline: 3px solid var(--accent); out
   </div>
 </main>
 
-<script src="vendor/chess.js?v=2026-10-12.3"></script>
-<script src="config.js?v=2026-10-12.3"></script>
-<script src="coach.js?v=2026-10-12.3"></script>
+<script src="vendor/chess.js?v=2026-10-12.4"></script>
+<script src="config.js?v=2026-10-12.4"></script>
+<script src="coach.js?v=2026-10-12.4"></script>
 </body>
 </html>

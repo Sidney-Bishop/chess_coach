@@ -151,3 +151,11 @@ gets the one-line record of the concept that now carries it.
   is unchanged and fully in force. Linked from the
   [decisions index](/decisions/) and added to its Standalone list; the root
   [index](/index.md) range updated to D001–D010.
+* **Update**: [Architecture](/architecture.md) adds a Move sounds section for
+  build `2026-10-12.4`: the three synthesised sounds (move, capture, check),
+  where they are triggered, the audio unlock on the first click, the "Move
+  sounds" checkbox (on by default) and the `chess-coach-v1-sound` storage key.
+  The components list, the persistence paragraph and the cited build are
+  brought in line. No decision recorded: the sounds use nothing over the
+  network and raise no privacy or cost question, so the architecture section
+  is enough.
