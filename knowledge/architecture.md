@@ -1,7 +1,7 @@
 ---
 type: Reference
 title: "chess_coach — Architecture"
-description: How chess_coach is built right now — the files under web/, how the page is served, the engine queue, the judging flow, the two commentary providers, the spoken coach voice, persistence, and how the artifact form is derived.
+description: How chess_coach is built right now — the files under web/, how the page is served, the engine queue, the judging flow, the commentary providers and the Coach model panel, the spoken coach voice, persistence, and how the artifact form is derived.
 tags: [reference, architecture, web, engine, commentary]
 generated: { by: human:jason-roche, at: 2026-10-12T00:00:00Z }
 stale_after: 2027-01-10T00:00:00Z
@@ -16,7 +16,7 @@ This is a **state** concept: overwrite it as the architecture changes. The
 the *story* of how it got there lives in `docs/journal.md`. This concept just
 says what *is*.
 
-All of this describes the code as of 2026-10-12, build `2026-10-12.2`.
+All of this describes the code as of 2026-10-12, build `2026-10-12.3`.
 
 # Components
 
@@ -32,12 +32,14 @@ code: the engine, the judging and the calls to the model all run in the page.
   (`http://127.0.0.1:8000`), the bearer token (the loopback literal `claude`,
   not a secret), the move model, the review model, temperature (0.2),
   `maxTokensMove` (1500), `maxTokensReview` (3000) and `timeoutMs` (180000).
-  Read only by the local provider; `coach.js` has defaults for every field.
+  The endpoint and models are the local model's starting settings; the
+  temperature, token limits and timeout apply to every provider on the local
+  page. Keys are never kept here. `coach.js` has defaults for every field.
 - `web/coach.js` — all the application logic, in one IIFE: the board and move
   input, the engine wrapper, the engine opponent, the judging of the player's
-  moves, the two commentary providers, the coach panel, the coach voice, the
+  moves, the commentary providers and the Coach model panel, the coach panel, the coach voice, the
   game review, persistence and event wiring. Its `BUILD` constant
-  (`2026-10-12.2`) is shown
+  (`2026-10-12.3`) is shown
   in the engine line under the scoresheet.
 - `web/vendor/` — third-party files, not edited by hand. `chess.js` 0.10.3
   (rules, legal moves, SAN, PGN) and `stockfish.asm.js` (Stockfish 10, npm
@@ -58,7 +60,7 @@ Chrome will not start the Stockfish Web Worker from a `file://` page, and only
 a locally served page can reach a model server on the same machine
 ([D005](/decisions/D005-page-served-locally-artifact-optional-cloud-build.md)).
 The page has no network dependency beyond Google Fonts and, when coaching is
-on, the oMLX endpoint — and, if the player picks one, a voice the browser
+on, the chosen coach model's address (the oMLX endpoint by default) — and, if the player picks one, a voice the browser
 provides over the network (see [The coach voice](#the-coach-voice)).
 
 # The engine worker and the search queue
@@ -155,22 +157,78 @@ every flagged note to the review model.
 
 # Commentary providers
 
-There are two providers, and where the page runs fixes which one it uses
-([D006](/decisions/D006-commentary-provider-local-omlx-default.md)). There is
-no fallback from one to the other.
+Where the page runs decides how it gets comments
+([D006](/decisions/D006-commentary-provider-local-omlx-default.md)). On the
+locally served page the player chooses the coach model from three providers
+([D009](/decisions/D009-player-chooses-coach-model-on-local-page.md)); the
+published artifact always uses cloud Claude. There is never a fallback from
+one provider to another.
 
 - **Choice.** At start, `initCoach` checks for `window.claude.use`. Present —
-  the page is the published artifact — means `cloud-claude`; absent means
-  `local-omlx`.
-- **`local-omlx`.** The page probes `GET /v1/models` (4 s timeout). If it
-  answers, coaching is on; if not, the panel says the local model is not
-  reachable, shows engine verdicts only and offers Retry. Comments and the
-  review are `POST /v1/chat/completions` with plain `fetch`, the bearer token,
-  a system and a user message, and the per-kind model and `max_tokens` from
-  `config.js`; the request is aborted after `timeoutMs`. As of 2026-10-10 the
-  move model is `Ornith-1.5-35B-A3B-OptiQ-4bit` and the review model
-  `Qwen3.8-27B-4bit`. An "unreachable" error during play turns coaching off
-  until Retry succeeds.
+  the page is the published artifact — means `cloud-claude`. Absent means the
+  locally served page: the "Coach model" panel is shown and the saved provider
+  is loaded and connected.
+- **The three providers on the local page** (`PROVIDERS` in `coach.js`):
+  - **Local model (oMLX)** (`local`), the default. Calls
+    `POST /v1/chat/completions` at its address, with the bearer token from
+    `config.js` (not editable in the panel). The address and model names
+    start from `config.js`; as of 2026-10-12 the move model is
+    `Ornith-1.5-35B-A3B-OptiQ-4bit` and the review model `Qwen3.8-27B-4bit`.
+  - **OpenAI-compatible service** (`openai`). Calls
+    `POST <address>/v1/chat/completions` — OpenAI, or a local Ollama or LM
+    Studio server. The address starts as `https://api.openai.com`; a key, if
+    entered, is sent as `Authorization: Bearer <key>`, and with no key no
+    `Authorization` header is sent. The model names start empty.
+  - **Anthropic** (`anthropic`). Calls `POST https://api.anthropic.com/v1/messages`
+    with the headers `x-api-key`, `anthropic-version: 2023-06-01` and
+    `anthropic-dangerous-direct-browser-access: true`, and joins the reply's
+    text blocks. The model names start as `claude-haiku-4-5-20251001` (move)
+    and `claude-sonnet-5-5` (review); as of 2026-10-12 neither has been tried
+    against the real service.
+
+  An address has trailing slashes and a trailing `/v1` removed before
+  `/v1/…` is added. Every provider uses the temperature, `max_tokens` and
+  `timeoutMs` from `config.js`, a system and a user message, and plain
+  `fetch`. The review uses the review model, or the move model if none is
+  entered.
+- **The panel.** `prov-box` in `index.html` is a collapsed `<details>` headed
+  "Coach model" (its summary shows the provider and move model). It has a
+  radio button per provider, and fields for the chosen one: address and model
+  names for the local model; address, API key and model names for an
+  OpenAI-compatible service; API key and model names for Anthropic. Key
+  fields are password inputs. Notes say the local model is free, that OpenAI
+  and Anthropic charge the player's account for each comment, and that a key
+  is kept only in this browser, never in the project's files, where anyone
+  using the same browser profile can read it. The artifact never shows the
+  panel.
+- **Storage.** All three providers' settings, keys included, and the chosen
+  provider are saved in plain text under `chess-coach-v1-provider` when the
+  player presses Save and test, and read back at start; only string fields
+  of a known provider are taken.
+- **Connection check** (`connectProvider`, run at start, on Retry and by
+  Save and test). For the local model the page probes `GET /v1/models`
+  (4 s timeout). For a service it sends nothing: it checks that an Anthropic
+  key is entered, that a move model is entered, and that an OpenAI-compatible
+  address is entered. If the check passes coaching is on. If not, coaching is
+  off, the coach status line says "<provider> not ready · engine verdicts only",
+  and the coach panel shows Retry with either "The local model at <address>
+  did not answer…" (local model unreachable) or "The coach model is not
+  working (<error>)…".
+- **Save and test** (`saveProvider`) saves the panel, runs the connection
+  check, then sends one test comment request with a short made-up fact
+  sheet. It reports "Working: <model> (<provider>) replied.", "Connected, but
+  the model gave no answer line. Try another model." (coaching stays on), or
+  "Not working: <error>" (coaching turned off).
+- **Errors during play.** A failed call leaves the note's engine-only text
+  with the error. An unreachable server, or an HTTP 401, 403 or 404, also
+  turns coaching off until Retry or Save and test succeeds; other errors
+  (a timeout, any other HTTP error) leave it on. The error text includes the
+  service's own message, cut to 200 characters.
+- **Retry for newer models.** An OpenAI-compatible call refused with HTTP 400
+  whose message mentions `max_tokens` or `temperature` is sent once more
+  with `max_completion_tokens` in place of `max_tokens`, and without the
+  temperature if the message mentioned it. An Anthropic call refused with
+  HTTP 400 mentioning `temperature` is sent once more without it.
 - **`cloud-claude`.** The page gets `sample` and `permissions` from
   `window.claude.use`. Coaching is off until the player presses "Turn on
   coaching" and grants permission; the choice is remembered. The call sends the
@@ -180,7 +238,7 @@ no fallback from one to the other.
 
 # Answer marker and length cap
 
-Both providers' replies go through `extractAnswer`. The system prompt asks
+Every provider's replies go through `extractAnswer`. The system prompt asks
 for exactly one line starting `COMMENT:` (move) or `REVIEW:` (review). The code:
 
 1. drops everything up to the last `</think>`, if there is one;
@@ -193,7 +251,8 @@ for exactly one line starting `COMMENT:` (move) or `REVIEW:` (review). The code:
    dropped if it would take the total over the word cap. The prompts ask for
    30 and 60 words; the code's cap is the backstop.
 
-On `local-omlx` a reply with no answer is retried once; if the retry has none
+On the locally served page, whichever provider is chosen, a reply with no
+answer is retried once; if the retry has none
 either, the call fails with "no answer in the reply" and the note keeps its
 engine-only text.
 
@@ -281,8 +340,9 @@ after every judgement: the PGN, side, level, board orientation, resigned flag,
 the notes (any pending one saved as not pending), the evaluation track, and
 the review only if a model wrote it. On load it is restored with each field
 checked, and anything inconsistent with the restored game dropped. The cloud
-opt-in is a separate key, `chess-coach-v1-coach`, and the voice settings
-another, `chess-coach-v1-voice`. Every storage access is in
+opt-in is a separate key, `chess-coach-v1-coach`; the voice settings
+another, `chess-coach-v1-voice`; and the coach model settings, keys included,
+another, `chess-coach-v1-provider`. Every storage access is in
 `try/catch`; the page works without storage. When `window.claude.hot` exists,
 the page also hands it a snapshot and starts from its data.
 
@@ -304,6 +364,12 @@ settings in `config.js` go unused
   `Content-Type`; it did when probed with oMLX 0.6.4 on 2026-10-09
   ([D006](/decisions/D006-commentary-provider-local-omlx-default.md)).
   Configured in `web/config.js`; there are no environment variables.
+- **An OpenAI-compatible service** or **Anthropic's Messages API**, if the
+  player chooses one in the Coach model panel, called from the browser with
+  the player's own key
+  ([D009](/decisions/D009-player-chooses-coach-model-on-local-page.md)). As of
+  2026-10-12 neither has been tried against the real service, only against
+  stand-ins.
 - **Claude**, through the artifact runtime's `sample` capability, for the
   published artifact only. No API key.
 - **Google Fonts**, for the page's typefaces.
@@ -331,7 +397,9 @@ settings in `config.js` go unused
 - [D005](/decisions/D005-page-served-locally-artifact-optional-cloud-build.md) —
   why the page is served locally and the artifact is derived.
 - [D006](/decisions/D006-commentary-provider-local-omlx-default.md) — the
-  providers and the no-fallback rule.
+  local default, cloud Claude for the artifact, and the no-fallback rule.
+- [D009](/decisions/D009-player-chooses-coach-model-on-local-page.md) — why
+  the player chooses the coach model on the local page.
 - [D007](/decisions/D007-coach-comments-spoken-with-browser-speech-synthesis.md) —
   why comments are spoken with the browser's speech synthesis.
 - [Q004](/open-questions/Q004-checking-comments-for-false-statements.md) —

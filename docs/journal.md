@@ -139,6 +139,27 @@ landed late on 2026-10-09, the last on 2026-10-10.
   so "Nxe4 wins a free pawn" would have passed.
 - Next: merge into `develop` and release.
 
+## 2026-10-12 — release 1.2.0 and choosing the coach model
+
+- Released 1.2.0: `main` at `64e57cb`, tagged `v1.2.0`. The published artifact
+  was republished from it.
+- The player confirmed on 2026-10-12 that spoken comments work in the
+  published artifact too, which settles D007's untried point.
+- On `feature/coach-model-settings`, committed at `eacdaf9`, build
+  `2026-10-12.3`: the "Coach model" panel on the locally served page, offering
+  the local model, an OpenAI-compatible service, or Anthropic, with the
+  player's own key kept in the browser.
+- Tested against stand-ins for OpenAI and Anthropic: a rejected key, a working
+  key, the `max_tokens` retry, the Anthropic headers, a flagged move commented
+  through the Anthropic stand-in, settings surviving a reload, and no key in
+  any project file.
+- Confirmed in a real game on 2026-10-12 with the local model, where a comment
+  was written and spoken through the new code.
+- The real OpenAI and Anthropic services remain untested.
+- Recorded D009 (the player chooses the coach model on the local page),
+  superseding D006 in part.
+- Next: merge into `develop` and release.
+
 <!-- Entry shape:
 
 ## YYYY-MM-DD — short summary of the session

@@ -117,3 +117,29 @@ gets the one-line record of the concept that now carries it.
   other false statements and reviews are unchecked. Moved to
   "Partially answered" in the [open-questions index](/open-questions/); the
   root [index](/index.md) line updated.
+* **Creation + partial supersession**:
+  [D009 — on the locally served page the player chooses the coach model: local, an OpenAI-compatible service, or Anthropic, with their own key](/decisions/D009-player-chooses-coach-model-on-local-page.md)
+  (Active, supersedes D006 scoped to which providers the locally served page
+  may use).
+  [D006](/decisions/D006-commentary-provider-local-omlx-default.md) marked
+  **Superseded** by D009 (scoped) — status fields and Status prose only,
+  content unchanged; it still governs the local default, no automatic
+  fallback, cloud Claude for the artifact, and the oMLX settings. The
+  [decisions index](/decisions/) gains the D009 entry and a D006 → D009 chain,
+  and D006 leaves the Standalone list; the root [index](/index.md) range
+  updated to D001–D009.
+* **Update**: [Architecture](/architecture.md) rewrites the commentary
+  providers section for build `2026-10-12.3`: the three providers on the
+  local page, the Coach model panel, the `chess-coach-v1-provider` storage
+  key, the connection check, Save and test, error handling, and the retry for
+  newer models. The `config.js` bullet, serving, answer-retry, persistence
+  and external-services text are brought in line. The cited build moves to
+  `2026-10-12.3`, and
+  [D009](/decisions/D009-player-chooses-coach-model-on-local-page.md) is added
+  to its links. `generated` (2026-10-12) and `stale_after` (2027-01-10) were
+  already current.
+* **Note**: the player confirmed on 2026-10-12 that spoken comments work in
+  the published artifact, which settles the point
+  [D007](/decisions/D007-coach-comments-spoken-with-browser-speech-synthesis.md)
+  lists as untried. D007 is left unedited, because decisions are not edited
+  in place; the confirmation is in `docs/journal.md`.

@@ -4,16 +4,24 @@ title: "D006 — Commentary provider is local-omlx by default; cloud-claude only
 description: The locally served page gets its commentary from local models through oMLX's OpenAI-compatible endpoint; cloud Claude is used only by the published artifact, and the page never falls back from one provider to the other.
 tags: [decision, llm, commentary, provider, omlx, D006]
 decision_id: D006
-status: Active
+status: Superseded
 date: 2026-10-09
 supersedes: none
-superseded_by: none
+superseded_by: D009 (scoped: which providers the locally served page may use)
 generated: { by: human:jason-roche, at: 2026-10-09T00:00:00Z }
 ---
 
 # Status
 
-**Active.** Date: 2026-10-09. Supersedes: none. Superseded by: none.
+**Superseded by D009 (scoped: which providers the locally served page may
+use).** Fully in force outside that scope. Date: 2026-10-09. Supersedes: none.
+
+[D009](/decisions/D009-player-chooses-coach-model-on-local-page.md)
+replaces only the rule in decision point 2 that nothing on the local page can
+reach the paid provider: the local page now lets the player choose a paid
+service with their own key. Everything else here still governs — the local
+model as the default, no automatic fallback, cloud Claude for the published
+artifact, and the oMLX settings in `web/config.js`.
 
 # Context
 
