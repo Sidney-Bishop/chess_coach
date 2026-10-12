@@ -211,6 +211,30 @@ landed late on 2026-10-09, the last on 2026-10-10.
 - Version set to 1.4.1. Next: check the README on GitHub, then merge and
   release 1.4.1.
 
+## 2026-10-12 — release 1.4.1, republished artifact, and a setup guide in the README
+
+- Released 1.4.1: `main` at `2243a69`, tagged `v1.4.1`.
+- Republished the artifact from 1.4.1 (version 13), so the published page has
+  the move sounds. The page is still private; sharing it is done from its
+  Share menu.
+- On `feature/readme-setup`: the README's "Run it" became a step-by-step
+  guide (start, open, stop, update with `git pull` and a hard reload), with
+  what works without a model. "Choose who writes the comments" now says oMLX
+  needs an Apple Silicon Mac and where its model names are set, gives a table
+  of addresses, keys and model names for Ollama, LM Studio and OpenAI, notes
+  LM Studio's Enable CORS setting, says the OpenAI and Anthropic options have
+  only been tested against stand-ins, and covers spoken comments. A new "If
+  something goes wrong" section covers a busy port, a page opened as a file,
+  a stale page, an unreachable model and no sound.
+- Checked against the code: the review model is optional for both OpenAI and
+  Anthropic (`provModel` falls back to the move model); an address ending in
+  `/v1` is accepted (`apiBase` strips it). Ollama's FAQ says it accepts
+  browser requests from `127.0.0.1` and `0.0.0.0` by default; the guide
+  points to that FAQ if Ollama refuses the page. Not tried with a real
+  Ollama or LM Studio.
+- Version set to 1.4.2. Next: check the README on GitHub, then merge and
+  release 1.4.2.
+
 <!-- Entry shape:
 
 ## YYYY-MM-DD — short summary of the session
